@@ -48,12 +48,19 @@ Z=(zed --endpoint "localhost:$SMOKE_PORT" --token "$SMOKE_KEY" --insecure)
 "${Z[@]}" schema read | grep -q "definition subscription" || fail "schema read-back missing 'subscription'"
 pass "live SpiceDB accepts schema.zed and returns it"
 
-stage "Compose file"
+stage "Compose file and Dockerfiles: static checks"
+# Always runs: localhost-only ports, a pinned SpiceDB image, telemetry off, no baked secrets, non-root images, and that the API's
+# authority matches the name tokens carry. Needs python3 with PyYAML.
+command -v python3 >/dev/null 2>&1 || fail "python3 is required for the Compose checks"
+python3 scripts/check-compose.py || fail "docker-compose.yml / Dockerfile checks"
+pass "compose and Dockerfile static checks"
+
+stage "Compose file: docker compose config"
 if command -v docker >/dev/null 2>&1; then
   docker compose config -q || fail "docker-compose.yml"
   pass "docker compose config"
 else
-  skip "compose" "docker not installed (DECISIONS.md D2); docker-compose.yml is unverified"
+  skip "compose" "docker not installed (DECISIONS.md D2/D3): the images were never built or run; their runtime configuration is rehearsed by the published-build stage"
 fi
 
 # --- Phase 2+: .NET --------------------------------------------------------------------------
@@ -115,7 +122,13 @@ stage "Web: Playwright journeys against the native stack (SpiceDB, issuer, API, 
 # Docker is unavailable (DECISIONS.md D2/D3), so Playwright starts the native processes itself. Chrome must be installed.
 command -v google-chrome >/dev/null 2>&1 || fail "google-chrome is required for the end-to-end journeys"
 (cd web && npx --no-install playwright test 2>&1 | grep -vE 'WebServer|chunk|dynamic import|codeSplitting|chunkSize' | tail -12) ; [[ ${PIPESTATUS[0]} -eq 0 ]] || fail "Playwright journeys"
-pass "5 Playwright journeys (admin wallet, spender, viewer, grant/revoke, no access)"
+pass "10 Playwright journeys (the PRD's five, plus the README demonstration)"
+
+stage "Web: the same journeys against the published API serving the client (rehearses the container images)"
+# `dotnet publish` output in the Production environment with the built client in wwwroot, every setting from the environment,
+# and the issuer reached by a different name than its tokens carry: everything about `docker compose up` but the runtime.
+(cd web && npm run e2e:published --silent 2>&1 | grep -vE 'WebServer|chunk|dynamic import|codeSplitting|chunkSize' | tail -12) ; [[ ${PIPESTATUS[0]} -eq 0 ]] || fail "published-build rehearsal"
+pass "10 Playwright journeys against the published API serving the built client"
 
 stage "Test hygiene: no engine, API or issuer processes left behind"
 # Test engines are started with --metrics-enabled=false (the dev helper keeps metrics on), so any survivor is a test leak.

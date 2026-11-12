@@ -44,10 +44,12 @@ public static class DevIssuerApp
         var app = builder.Build();
         app.UseCors();
 
-        app.MapGet("/.well-known/openid-configuration", () => Results.Json(new
+        app.MapGet("/.well-known/openid-configuration", (HttpRequest request) => Results.Json(new
         {
             issuer = factory.Issuer,
-            jwks_uri = $"{factory.Issuer}/.well-known/jwks.json",
+            // The keys are fetched from wherever this document was fetched: a caller reaches the issuer by its container or host
+            // name, which need not be the public name that tokens carry as their issuer.
+            jwks_uri = $"{request.Scheme}://{request.Host}/.well-known/jwks.json",
             id_token_signing_alg_values_supported = SigningAlgorithms,
             subject_types_supported = SubjectTypes,
             response_types_supported = ResponseTypes,

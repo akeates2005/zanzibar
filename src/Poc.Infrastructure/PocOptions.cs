@@ -19,6 +19,12 @@ public sealed class PocOptions
 
     public TimeSpan ReconciliationInterval { get; set; } = TimeSpan.FromSeconds(60);
 
+    /// <summary>How often the watchdog checks that SpiceDB still holds its schema.</summary>
+    public TimeSpan SchemaCheckInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>How long to wait before retrying a failed rebuild after schema loss.</summary>
+    public TimeSpan RecoveryRetryInterval { get; set; } = TimeSpan.FromSeconds(5);
+
     /// <summary>A message that fails this many times (for reasons a retry will not fix) is left unprocessed with its error.</summary>
     public int MaxOutboxAttempts { get; set; } = 5;
 

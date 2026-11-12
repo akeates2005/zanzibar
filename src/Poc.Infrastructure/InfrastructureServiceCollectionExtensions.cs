@@ -59,9 +59,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<RuntimeState>();
         services.AddScoped<Seeder>();
         services.AddSingleton<StartupSequence>();
+        services.AddSingleton<SchemaRecovery>();
 
         services.AddHostedService<OutboxFlushWorker>();
         services.AddHostedService<ReconciliationWorker>();
+        services.AddHostedService<EngineWatchdog>();
         return services;
     }
 }

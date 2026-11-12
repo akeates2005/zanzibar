@@ -1,5 +1,11 @@
-# Phase 1: SpiceDB only. api, issuer and web services are added in Phases 4-6.
-# NOTE: this file has not been run yet; Docker is not installed in the dev environment (see DECISIONS.md D2/D3).
+# The whole proof of concept:  docker compose up --build   then open http://localhost:5080
+#
+# NOTE: this file and the Dockerfiles have not been run. Docker was unavailable when Phase 6 was written (DECISIONS.md
+# D2/D3). The API's runtime configuration below is exercised natively by `npm run e2e:published` in web/ (the published API,
+# serving the built client, against a separate issuer and SpiceDB, with the issuer reached by a different name than the one
+# in its tokens), and the schema, tuples and matrix are proven by `zed validate`.
+#
+# The API serves the built client itself, so there is no separate web service. Only localhost can reach any published port.
 services:
   spicedb:
     image: authzed/spicedb:v1.57.1
@@ -9,8 +15,42 @@ services:
       - --telemetry-endpoint=
       - --skip-release-check=true
     environment:
-      # Development default lives here only (PRD rule 8). Override with SPICEDB_PRESHARED_KEY in the environment.
+      # The development default lives here only (PRD rule 8). Override with SPICEDB_PRESHARED_KEY in the environment or .env.
       SPICEDB_GRPC_PRESHARED_KEY: ${SPICEDB_PRESHARED_KEY:-zanzibar-dev-only-key}
     ports:
       - "127.0.0.1:50051:50051"
+    restart: unless-stopped
+
+  issuer:
+    build:
+      context: .
+      dockerfile: src/Poc.DevIssuer/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development # the stub refuses to start in any other environment
+      # Tokens name the address a browser uses, which is not the address the API uses inside this network.
+      Issuer__Issuer: http://localhost:5090
+      Issuer__Audience: poc-api
+      Issuer__WebOrigin: http://localhost:5080 # the client is served from the API's origin
+    ports:
+      - "127.0.0.1:5090:5090"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Poc.Api/Dockerfile
+    depends_on:
+      - spicedb
+      - issuer
+    environment:
+      Poc__SpiceDb__Endpoint: http://spicedb:50051
+      Poc__SpiceDb__AllowInsecureTransport: "true" # plain HTTP, inside this private network only
+      Poc__SpiceDb__PresharedKey: ${SPICEDB_PRESHARED_KEY:-zanzibar-dev-only-key}
+      Authentication__Authority: http://localhost:5090 # what tokens name as their issuer
+      Authentication__MetadataAddress: http://issuer:5090/.well-known/openid-configuration # where this container fetches keys
+      Authentication__RequireHttpsMetadata: "false"
+      Authentication__Audience: poc-api
+      Cors__WebOrigin: http://localhost:5080
+    ports:
+      - "127.0.0.1:5080:5080"
     restart: unless-stopped

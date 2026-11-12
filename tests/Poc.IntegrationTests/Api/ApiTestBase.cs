@@ -13,7 +13,7 @@ public abstract class ApiTestBase : IAsyncLifetime
 {
     protected static CancellationToken Ct => CancellationToken.None;
 
-    protected ApiHost Host { get; private set; } = null!;
+    protected ApiHost Host { get; set; } = null!;
 
     /// <summary>Tests that deliberately create drift or dead messages set this so cleanup does not assert on them.</summary>
     protected bool ExpectDrift { get; set; }
@@ -39,6 +39,18 @@ public abstract class ApiTestBase : IAsyncLifetime
         {
             await Host.DisposeAsync();
         }
+    }
+
+    protected static async Task EventuallyAsync(Func<Task<bool>> condition, string failure, int seconds = 30)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(seconds);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (await condition()) return;
+            await Task.Delay(50);
+        }
+
+        Assert.Fail(failure);
     }
 
     protected Task<HttpClient> AsAsync(string user) => Host.ClientAsync(user);

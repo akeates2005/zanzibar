@@ -6,7 +6,10 @@ using Poc.Api.Hosting;
 using Poc.Api.Security;
 using Poc.Application.Common;
 using Poc.Domain.Common;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Poc.Infrastructure;
+using Poc.Infrastructure.SpiceDb;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
@@ -30,6 +33,9 @@ builder.Services
     {
         options.Authority = authority;
         options.Audience = audience;
+        // Where to fetch discovery and keys from, when that differs from the public authority that tokens name as their issuer
+        // (for example inside a container network, where the issuer is reached as http://issuer:5090 but browsers see localhost).
+        if (config["Authentication:MetadataAddress"] is { Length: > 0 } metadataAddress) options.MetadataAddress = metadataAddress;
         options.RequireHttpsMetadata = config.GetValue("Authentication:RequireHttpsMetadata", true);
         options.MapInboundClaims = false; // keep claim names exactly as issued
         options.TokenValidationParameters = new TokenValidationParameters
@@ -72,6 +78,22 @@ builder.Services.AddScoped<AccessFilter>();
 builder.Services.AddScoped<ObjectViews>();
 builder.Services.AddScoped<AuthContext>();
 builder.Services.AddHostedService<StartupHostedService>();
+
+// ---- Observability: a span per SpiceDB call, joined to the request that caused it (PRD: Observability) -------------
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("zanzibar-poc-api"))
+    .WithTracing(tracing =>
+    {
+        tracing.AddSource(SpiceDbTelemetry.ActivitySourceName)
+            .AddAspNetCoreInstrumentation(o => o.Filter = context => !context.Request.Path.StartsWithSegments("/health", StringComparison.Ordinal));
+        // Export only where asked: OTLP when an endpoint is configured (the standard OTEL_EXPORTER_OTLP_ENDPOINT), console on request.
+        if (!string.IsNullOrWhiteSpace(config["OTEL_EXPORTER_OTLP_ENDPOINT"])) tracing.AddOtlpExporter();
+        if (config.GetValue("Telemetry:Console", false)) tracing.AddConsoleExporter();
+    });
+
+// Framework request logs print the full URL, and the user search puts what the person typed (possibly an email address) in
+// the query string. Keep them off whatever the configuration says: no email address is ever logged (PRD).
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 
 builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = c =>
 {
@@ -142,6 +164,17 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+// The built client, when one is present (the container image puts it in wwwroot): static files plus a fallback to index.html
+// so client-side routes survive a reload. The fallback never answers for /api, /health or the API description, which must keep
+// returning JSON problems rather than a web page.
+var webRoot = app.Environment.WebRootPath;
+var serveClient = webRoot is not null && File.Exists(Path.Combine(webRoot, "index.html"));
+if (serveClient)
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+}
 app.UseCors();
 app.UseMiddleware<ReadinessMiddleware>();
 app.UseAuthentication();
@@ -157,6 +190,12 @@ SystemEndpoints.Map(api);
 
 SystemEndpoints.MapHealth(app);
 app.MapOpenApi().AllowAnonymous().WithMetadata(new AccessRequirement.Anonymous("The API description contains no data."));
+
+if (serveClient)
+{
+    app.MapFallbackToFile("{*path:nonfile:regex(^(?!api/|api$|health|openapi/).*)}", "index.html").AllowAnonymous()
+        .WithMetadata(new AccessRequirement.Anonymous("The built client's entry page: static, no data."));
+}
 
 app.Run();
 

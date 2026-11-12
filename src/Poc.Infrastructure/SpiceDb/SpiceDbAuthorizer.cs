@@ -28,7 +28,7 @@ public sealed partial class SpiceDbAuthorizer(SpiceDbConnection connection, ILog
             deadline => connection.Permissions.CheckPermissionAsync(request, deadline: deadline, cancellationToken: ct).ResponseAsync,
             ct).ConfigureAwait(false);
         var allowed = response.Permissionship == Az.CheckPermissionResponse.Types.Permissionship.HasPermission;
-        LogCheck(subject.ToString(), permission, resource.ToString(), allowed, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        LogCheck(subject.ToString(), permission, resource.ToString(), allowed, Stopwatch.GetElapsedTime(started).TotalMilliseconds, CurrentTraceId());
         return allowed;
     }
 
@@ -77,7 +77,7 @@ public sealed partial class SpiceDbAuthorizer(SpiceDbConnection connection, ILog
 
         var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         foreach (var (permission, allowed) in result)
-            LogCheck(subject.ToString(), permission, resource.ToString(), allowed, elapsed);
+            LogCheck(subject.ToString(), permission, resource.ToString(), allowed, elapsed, CurrentTraceId());
         return result;
     }
 
@@ -191,7 +191,7 @@ public sealed partial class SpiceDbAuthorizer(SpiceDbConnection connection, ILog
             deadline => connection.Permissions.CheckPermissionAsync(request, deadline: deadline, cancellationToken: ct).ResponseAsync,
             ct).ConfigureAwait(false);
         var allowed = response.Permissionship == Az.CheckPermissionResponse.Types.Permissionship.HasPermission;
-        LogCheck(subject.ToString(), permission, resource.ToString(), allowed, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        LogCheck(subject.ToString(), permission, resource.ToString(), allowed, Stopwatch.GetElapsedTime(started).TotalMilliseconds, CurrentTraceId());
 
         var budget = TraceNodeLimit;
         return new CheckExplanation(allowed, response.DebugTrace?.Check is { } root ? MapTrace(root, ref budget) : null);
@@ -221,12 +221,15 @@ public sealed partial class SpiceDbAuthorizer(SpiceDbConnection connection, ILog
             children);
     }
 
+    /// <summary>The trace id of the request this check belongs to, so a log line can be joined to its trace.</summary>
+    private static string CurrentTraceId() => Activity.Current?.TraceId.ToString() ?? "none";
+
     private static void RequireName(string value)
     {
         if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException("Permission and type names must not be empty.");
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Debug,
-        Message = "authz check subject={Subject} permission={Permission} resource={Resource} allowed={Allowed} durationMs={DurationMs:F1}")]
-    private partial void LogCheck(string subject, string permission, string resource, bool allowed, double durationMs);
+        Message = "authz check subject={Subject} permission={Permission} resource={Resource} allowed={Allowed} durationMs={DurationMs:F1} traceId={TraceId}")]
+    private partial void LogCheck(string subject, string permission, string resource, bool allowed, double durationMs, string traceId);
 }

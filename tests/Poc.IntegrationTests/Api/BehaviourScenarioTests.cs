@@ -246,7 +246,7 @@ public sealed class BehaviourScenarioTests : ApiTestBase
         await (await priya.GetAsync($"/api/customers/{id}")).ExpectProblemAsync(HttpStatusCode.NotFound);
     }
 
-    private static async Task EventuallyAsync(Func<Task<bool>> condition, string failure, int seconds = 15)
+    private static new async Task EventuallyAsync(Func<Task<bool>> condition, string failure, int seconds = 15)
     {
         var deadline = DateTime.UtcNow.AddSeconds(seconds);
         while (DateTime.UtcNow < deadline)

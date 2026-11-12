@@ -13,18 +13,16 @@ public static class SystemEndpoints
 {
     public static void MapHealth(WebApplication app)
     {
-        app.MapGet("/health", async (RuntimeState state, ISchemaStore schema, IOutboxInspector outbox, CancellationToken ct) =>
+        app.MapGet("/health", async (RuntimeState state, SchemaRecovery recovery, IOutboxInspector outbox, CancellationToken ct) =>
         {
-            // The probe reads the schema each time: a memory-datastore restart loses it, and that must be visible (PRD).
-            string engine;
-            try
+            // The probe reads the schema each time (PRD): a memory-datastore restart loses it, and the probe both reports that
+            // and starts the rebuild.
+            var engine = (await recovery.ProbeAsync(ct)) switch
             {
-                engine = await schema.ReadAsync(ct) is null ? "schema-missing" : "ok";
-            }
-            catch (AuthorizationUnavailableException)
-            {
-                engine = "unreachable";
-            }
+                EngineStatus.Ok => "ok",
+                EngineStatus.SchemaMissing => "schema-missing",
+                _ => "unreachable",
+            };
 
             OutboxStatus? status = null;
             try

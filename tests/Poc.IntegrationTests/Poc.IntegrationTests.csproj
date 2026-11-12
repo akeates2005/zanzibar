@@ -14,6 +14,7 @@
     <ProjectReference Include="..\..\src\Poc.Api\Poc.Api.csproj" />
     <ProjectReference Include="..\..\src\Poc.DevIssuer\Poc.DevIssuer.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.23" />
+    <PackageReference Include="OpenTelemetry.Exporter.InMemory" Version="1.15.3" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

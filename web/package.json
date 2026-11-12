@@ -13,7 +13,8 @@
     "test": "vitest run",
     "gen:api": "openapi-typescript openapi.json -o src/api/schema.ts",
     "check:api": "npm run gen:api && git diff --exit-code -- src/api/schema.ts",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:published": "E2E_MODE=published playwright test"
   },
   "dependencies": {
     "@mantine/core": "^9.8.0",
