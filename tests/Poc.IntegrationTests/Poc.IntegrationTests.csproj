@@ -8,12 +8,14 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <ProjectReference Include="..\..\src\Poc.Domain\Poc.Domain.csproj" />
     <ProjectReference Include="..\..\src\Poc.Application\Poc.Application.csproj" />
     <ProjectReference Include="..\..\src\Poc.Infrastructure\Poc.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
-    <!-- The real schema, so tests run against exactly what ships. -->
+    <!-- The real schema and the real matrix, so tests run against exactly what ships. -->
     <None Include="..\..\authz\schema.zed" Link="authz\schema.zed" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\authz\validation.yaml" Link="authz\validation.yaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

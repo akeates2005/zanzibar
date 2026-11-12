@@ -93,6 +93,46 @@ public sealed class LayeringTests
         Assert.Contains(Infrastructure.GetReferencedAssemblies(), a => a.Name == "Authzed.Net");
     }
 
+    /// <summary>
+    /// PRD rule 6: Commerce code never writes tuples. Only these types may touch the relationship store: the projector
+    /// and Access Management (the two writers), reconciliation repair and the start-up reset (both named in the PRD), and
+    /// the adapter that implements it. Anything new must be added here deliberately.
+    /// </summary>
+    [Fact]
+    public void Only_the_named_components_may_depend_on_the_relationship_store()
+    {
+        var allowed = new[]
+        {
+            "Poc.Infrastructure.SpiceDb.SpiceDbRelationshipStore",
+            "Poc.Infrastructure.Projection.OutboxProjector",
+            "Poc.Application.Access.AccessService",
+            "Poc.Application.Reconciliation.ReconciliationService",
+            "Poc.Infrastructure.Startup.StartupSequence",
+            // Composition root: these only register the interface in the container; they never call it.
+            "Poc.Infrastructure.SpiceDb.ServiceCollectionExtensions",
+            "Poc.Infrastructure.InfrastructureServiceCollectionExtensions",
+        };
+        var store = typeof(IRelationshipStore).FullName!;
+
+        foreach (var assembly in new[] { Domain, Application, Infrastructure })
+        {
+            var dependents = Types.InAssembly(assembly).That().HaveDependencyOn(store).GetTypes()
+                .Select(t => t.FullName!)
+                .Where(n => !n.Contains('+') && !n.Contains('<')) // skip compiler-generated nested types
+                .Where(n => n != store)
+                .Order().ToList();
+            Assert.Empty(dependents.Except(allowed));
+        }
+    }
+
+    [Fact]
+    public void Commerce_types_have_no_dependency_on_the_relationship_store_or_the_engine_client()
+    {
+        var result = Types.InAssembly(Domain).That().ResideInNamespace("Poc.Domain.Commerce")
+            .ShouldNot().HaveDependencyOnAny(typeof(IRelationshipStore).FullName!, "Authzed", "Grpc").GetResult();
+        Assert.True(result.IsSuccessful);
+    }
+
     [Fact]
     public void The_dependency_rule_would_detect_a_violation()
     {

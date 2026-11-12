@@ -61,6 +61,7 @@ public sealed class FailureTests(SpiceDbFixture fx)
         using var dead = DeadConnection();
         var ex = await Assert.ThrowsAsync<AuthorizationUnavailableException>(() => Run(operation, dead));
         Assert.IsType<RpcException>(ex.InnerException);
+        Assert.True(ex.IsTransient, "an unreachable engine is worth retrying");
     }
 
     [Theory]
@@ -71,6 +72,7 @@ public sealed class FailureTests(SpiceDbFixture fx)
         var ex = await Assert.ThrowsAsync<AuthorizationUnavailableException>(() => Run(operation, wrongKey));
         // SpiceDB answers a bad preshared key with PermissionDenied (observed on v1.57.1), not Unauthenticated.
         Assert.Equal(StatusCode.PermissionDenied, ((RpcException)ex.InnerException!).StatusCode);
+        Assert.False(ex.IsTransient, "a rejected key will not be fixed by retrying");
     }
 
     [Theory]
@@ -105,6 +107,7 @@ public sealed class FailureTests(SpiceDbFixture fx)
         clock.Stop();
 
         Assert.Equal(StatusCode.DeadlineExceeded, ((RpcException)ex.InnerException!).StatusCode);
+        Assert.True(ex.IsTransient, "a timeout is worth retrying");
         Assert.True(clock.Elapsed < TimeSpan.FromSeconds(4), $"took {clock.Elapsed}");
         silent.Stop();
         await acceptLoop;

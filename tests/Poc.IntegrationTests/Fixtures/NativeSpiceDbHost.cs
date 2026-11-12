@@ -31,11 +31,11 @@ public sealed class NativeSpiceDbHost : ISpiceDbHost
     }
 
     /// <summary>Starts the process and waits until its gRPC port accepts connections.</summary>
-    public static async Task<NativeSpiceDbHost> StartAsync()
+    public static async Task<NativeSpiceDbHost> StartAsync(int? fixedPort = null, string? fixedKey = null)
     {
         var binary = FindBinary();
-        var port = FreePort();
-        var key = "it-" + Guid.NewGuid().ToString("N");
+        var port = fixedPort ?? FreePort();
+        var key = fixedKey ?? "it-" + Guid.NewGuid().ToString("N");
 
         var info = new ProcessStartInfo(binary)
         {

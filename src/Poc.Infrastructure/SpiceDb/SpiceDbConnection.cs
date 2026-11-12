@@ -81,7 +81,11 @@ public sealed class SpiceDbConnection : IDisposable
         catch (RpcException ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.StatusCode.ToString());
-            throw new AuthorizationUnavailableException(operation, $"{ex.StatusCode}: {ex.Status.Detail}", ex);
+            throw new AuthorizationUnavailableException(
+                operation,
+                $"{ex.StatusCode}: {ex.Status.Detail}",
+                ex,
+                isTransient: ex.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded);
         }
     }
 

@@ -54,3 +54,45 @@ The integration test fixture will sit behind an interface so it can start a nati
 - **Integration test host.** `ISpiceDbHost` is implemented by `NativeSpiceDbHost` (free loopback port, memory datastore, telemetry off). Tests share one engine and isolate themselves with unique ids. A missing `spicedb` binary fails the run; it never skips. A Testcontainers host can replace it without touching tests (D2).
 - **Test naming.** CA1707 (underscores in names) is disabled for `tests/` only, in `.editorconfig`, so test names can read as sentences.
 - **Gate checks proved able to fail.** Each of these was broken on a scratch copy and made `verify.sh` exit 1: a failing unit test, a formatting violation, a constant missing from the schema, a schema permission with no constant, `Authzed.Net` referenced from Application, and a pager that stops early.
+
+## Phase 3 decisions (PRD silent or ambiguous)
+
+**Domain and persistence**
+- **`CustomerDomain`, not `Domain`.** A type named `Domain` inside the `Poc.Domain` namespace is ambiguous with the namespace itself. The table is still `Domains` and the events are still `DomainCreated`/`DomainDeleted`.
+- **Ids are validated** to `^[a-z0-9][a-z0-9_-]*$`, at most 128 characters (`EntityId`). Ids are used verbatim as database keys and tuple object ids with no translation layer (PRD), so a user-supplied id such as `a#member` or `*` must never reach a tuple. This is stricter than the engine's own rule, on purpose.
+- **Audit columns.** `CreatedAt`, `CreatedBy`, `RowVersion`, `AuthzToken` are on Customers, Domains, Wallets, Subscriptions and Groups. `Users` is a directory, not a business table, and has none. `GrantAudit` gains a `SubjectRelation` column (`member` for `group#member` subjects), which the PRD's column list lacks but the tuple needs.
+- **Foreign keys use Restrict.** FK failures arrive from SQLite as extended code 787 on insert but as plain error 19 ("FOREIGN KEY constraint failed") for `ON DELETE RESTRICT`; both map to `ConflictException`.
+- **No application-level write gate on SQLite.** The PRD warns that shared-cache SQLite allows one writer at a time. Tested empirically: 40 concurrent writers + readers pass in the suite, and 300 + 300 passed five times in a row as an ad-hoc stress run, with no `database table is locked` errors (Microsoft.Data.Sqlite waits on SQLite's unlock notification). The rule "never hold a transaction across a SpiceDB call" is still observed.
+- **`AuthzToken` is stamped with `ExecuteUpdate`,** so a stamp never bumps `RowVersion` and cannot conflict with a user's edit. A stamp failure after a successful grant is logged, not surfaced: the tuple is already written.
+- **Reset deletes rows** (children first, identity counters reset) instead of dropping tables, so the keep-alive connection and schema are untouched.
+- **Seed values the PRD leaves open:** product names, quantities and balances are invented; user emails use the reserved `zanzibar.example` domain.
+
+**Outbox and projector**
+- **Attempts count only failures a retry cannot fix.** The PRD says a message "that fails five times" is left unprocessed, but its own pause scenario (SpiceDB paused, then unpaused) needs messages to survive any outage. `AuthorizationUnavailableException.IsTransient` (gRPC `Unavailable` or `DeadlineExceeded`) distinguishes the two: an outage records `LastError`, stops the flush to keep order, and never increments `Attempts`; a rejection (bad request, bad key, unknown event) increments it. Tested with a 12-flush outage.
+- **A failed message blocks later messages for the same object** (its `Target`), within the flush and afterwards; other objects proceed. A dead message (5 attempts) stays unprocessed and visible through `IOutboxInspector` for the System screen. There is no per-message retry yet; the System reset rebuilds both stores.
+- **`Attempts` also counts the successful attempt,** so a processed message shows `Attempts = 1`.
+- **Uninterpretable messages** (unknown type, bad payload) fail visibly like any other; they are never skipped.
+- **Order within a flush** is sequence order; only one flush runs at a time (semaphore), and the start-up reset takes the same gate (`RunExclusiveAsync`) so the background worker cannot project into a store that is being rebuilt.
+- **Default grant condition.** The PRD says "when the creator lacks `admin`". The policy grants `operator` when the creator holds neither `admin` nor `change_quantity`, which equals the PRD rule on first processing and makes a replayed message a no-op instead of writing a second audit pair. Seed and other system-made subscriptions get no default grant (there is no real creator).
+- **Subscription creation by a non-admin spender** is the only creation with a default grant, as the PRD states.
+
+**Access Management**
+- **`Actor.System` is the only authorisation bypass** and exists for the seeder and the default-grant policy. It skips the engine permission check but not the service rules or the audit. `Actor.ForUser("system")` throws, so a token cannot claim it; the API will build actors only through `ForUser`.
+- **Permission is checked before validation,** so an unauthorised caller learns nothing from a validation message. A user granting on a non-existent object gets 403, not 404, for the same reason; the system actor gets `NotFound`.
+- **Revoking a platform group's grant is also restricted to platform administrators,** matching the PRD rule for granting. The PRD is silent on revoke; the conservative reading avoids a customer admin removing platform support access.
+- **The cycle check is a relation check** (`group:B#member` with subject `group:A#member`), as the PRD specifies. It is the one place a relation is checked rather than a permission, because `group` has no permission equal to membership.
+- **Group create/delete do not check permissions inside the service;** the endpoint filter does (`create_group` on the owner, `manage` on the group), as for every create and delete route. Grants and membership changes check internally, as the PRD's grant sequence requires.
+- **Application has no logging dependency,** so grant/revoke logging goes through an `IAccessLog` port implemented in Infrastructure at information level (user ids and objects only).
+- **The audit store uses its own `DbContext`,** so an audit write can never commit another command's half-finished changes.
+
+**Reconciliation and start-up**
+- **Grants are out of scope for reconciliation.** It covers parent and owner references only (PRD); a test pins that boundary.
+- **Objects with unprocessed outbox messages are skipped** and counted in `SkippedPending`, because their tuples are in flight. The pending set is read before the expected set so an object created in between is skipped, not misreported.
+- **Start-up waits for the engine** (500 ms polling, 60 s default). A transient failure is retried until the timeout (`TimeoutException`); a non-transient one (wrong preshared key) fails at once.
+- **Start-up leaves the system not ready on any failure** and the next run recovers; concurrent runs are serialised.
+- **Carry-over for Phase 4:** deleting a customer that still owns groups should be refused with 409 like other deletions with children, because a group's owner edge would otherwise dangle. The PRD lists only domains, wallets and subscriptions as children.
+
+**Quality gates added**
+- Architecture: only the projector, `AccessService`, reconciliation, the start-up reset and the adapter may depend on `IRelationshipStore` (PRD rule 6); a deliberately added rogue writer fails the test.
+- Fitness: every domain event has a tuple mapping and survives the outbox round trip; the grantable-relations table equals the schema's non-structural relations.
+- Mutation-checked on scratch edits (all caught, all restored): transient failures counting as attempts, a move that forgets the old parent, group deletion skipping subject cleanup, rule 1 disabled, the cycle check disabled, the default grant disabled, grants skipping the permission check, reconciliation ignoring unexpected tuples, the outbox not written with the aggregate, a seed grant omitted, the row version not bumped, and a per-item bulk error read as "deny".
