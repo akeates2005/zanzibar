@@ -56,8 +56,38 @@ else
   skip "compose" "docker not installed (DECISIONS.md D2); docker-compose.yml is unverified"
 fi
 
+# --- Phase 2+: .NET --------------------------------------------------------------------------
+need dotnet
+export PATH="$HOME/.local/bin:$PATH"   # native spicedb/zed install location (DECISIONS.md D2)
+
+stage ".NET: formatting"
+dotnet format Poc.sln --verify-no-changes || fail "dotnet format (run 'dotnet format Poc.sln' to fix)"
+pass "dotnet format --verify-no-changes"
+
+stage ".NET: build (nullable on, warnings are errors)"
+dotnet build Poc.sln -c Release --nologo -v quiet || fail "dotnet build"
+pass "dotnet build (Release, warnings as errors)"
+
+# Runs one test project and fails if it ran no tests (a misconfigured project must not pass).
+run_tests() { # <label> <project>
+  local out; out="$(mktemp)"
+  dotnet test "$2" -c Release --no-build --nologo 2>&1 | tee "$out"
+  local rc=${PIPESTATUS[0]}
+  local line; line="$(grep -E '^(Passed|Failed)!' "$out" | tail -1)"
+  rm -f "$out"
+  (( rc == 0 )) || fail "$1 tests"
+  local count; count="$(sed -nE 's/.*Passed:[[:space:]]*([0-9]+).*/\1/p' <<<"$line")"
+  [[ -n "$count" && "$count" -gt 0 ]] || fail "$1 tests ran no tests"
+  pass "$1 tests ($count passed)"
+}
+
+stage "Unit + architecture tests (schema constants, layering)"
+run_tests "unit" tests/Poc.UnitTests
+
+stage "Integration tests (adapter against a real SpiceDB)"
+run_tests "integration" tests/Poc.IntegrationTests
+
 stage "Not yet implemented (later phases)"
-skip "dotnet" "no .NET solution until Phase 2 (build, format, unit, architecture, integration tests)"
 skip "web" "no client until Phase 5 (tsc strict, eslint, Playwright)"
 
 summary

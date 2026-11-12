@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Poc.Application\Poc.Application.csproj" />
+    <PackageReference Include="Authzed.Net" Version="1.6.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.23" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.23" />
+  </ItemGroup>
+</Project>
