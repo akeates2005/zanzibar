@@ -15,20 +15,41 @@ namespace Poc.IntegrationTests.Observability;
 /// </summary>
 public sealed partial class ObservabilityTests : ApiTestBase
 {
-    /// <summary>The server span for a request to <paramref name="path"/> (the framework records the path in its tags).</summary>
-    private async Task<Activity> RequestSpanAsync(string path)
+    /// <summary>
+    /// GETs <paramref name="url"/> in a trace of its own. ActivitySources are process-wide, so every test host in this process
+    /// also receives the spans of the others running in parallel; a trace id chosen here is the only thing no other test can
+    /// share, and the server honours the W3C <c>traceparent</c> header.
+    /// </summary>
+    private static async Task<(HttpResponseMessage Response, TracedRequest Trace)> GetTracedAsync(HttpClient client, string url)
+    {
+        var trace = ActivityTraceId.CreateRandom();
+        var caller = ActivitySpanId.CreateRandom();
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Add("traceparent", $"00-{trace}-{caller}-01");
+        return (await client.SendAsync(request), new TracedRequest(trace, caller));
+    }
+
+    /// <summary>The trace a test started and the span id it claimed as the caller, which the server span is a child of.</summary>
+    private sealed record TracedRequest(ActivityTraceId Trace, ActivitySpanId Caller);
+
+    /// <summary>
+    /// The server span for the traced request: the one whose parent is the caller span the test sent. The trace holds others, too:
+    /// on a first token validation the API calls the stub issuer (discovery and keys), and the trace context propagates, so the
+    /// issuer's own server spans belong to the same trace.
+    /// </summary>
+    private async Task<Activity> RequestSpanAsync(TracedRequest traced)
     {
         Activity? found = null;
         await EventuallyAsync(() =>
         {
-            found = Host.Spans.Snapshot().FirstOrDefault(a => a.Source.Name == "Microsoft.AspNetCore" && a.Tags.Any(t => t.Value == path));
+            found = Host.Spans.Snapshot().FirstOrDefault(a => a.Source.Name == "Microsoft.AspNetCore" && a.TraceId == traced.Trace && a.ParentSpanId == traced.Caller);
             return Task.FromResult(found is not null);
-        }, $"no server span was exported for {path}", seconds: 10);
+        }, "no server span was exported for the traced request", seconds: 10);
         return found!;
     }
 
-    private IEnumerable<Activity> SpiceDbSpansIn(ActivityTraceId trace) =>
-        Host.Spans.Snapshot().Where(a => a.Source.Name == SpiceDbTelemetry.ActivitySourceName && a.TraceId == trace);
+    private IEnumerable<Activity> SpiceDbSpansIn(TracedRequest traced) =>
+        Host.Spans.Snapshot().Where(a => a.Source.Name == SpiceDbTelemetry.ActivitySourceName && a.TraceId == traced.Trace);
 
     // ---- Traces ---------------------------------------------------------------------------------------------------
 
@@ -36,12 +57,12 @@ public sealed partial class ObservabilityTests : ApiTestBase
     public async Task Every_SpiceDB_call_made_for_a_request_is_a_span_in_that_requests_trace()
     {
         var alice = await AsAsync("alice");
-        Host.Spans.Clear();
 
-        await (await alice.GetAsync("/api/customers/acme")).ExpectAsync(HttpStatusCode.OK);
+        var (response, trace) = await GetTracedAsync(alice, "/api/customers/acme");
+        using (response) await response.ExpectAsync(HttpStatusCode.OK);
 
-        var request = await RequestSpanAsync("/api/customers/acme");
-        var spans = SpiceDbSpansIn(request.TraceId).ToList();
+        var request = await RequestSpanAsync(trace);
+        var spans = SpiceDbSpansIn(trace).ToList();
         // The filter's view check, the object's permission map, and the one ancestor's view check: three calls, three spans.
         Assert.Equal(["spicedb.CheckBulkPermissions", "spicedb.CheckPermission", "spicedb.CheckPermission"], spans.Select(s => s.OperationName).Order(StringComparer.Ordinal).ToArray());
         Assert.All(spans, s =>
@@ -58,13 +79,13 @@ public sealed partial class ObservabilityTests : ApiTestBase
     public async Task A_failed_engine_call_is_a_span_with_error_status()
     {
         var alice = await AsAsync("alice");
-        Host.Spans.Clear();
         Host.Engine.Pause();
 
-        await (await alice.GetAsync("/api/customers/acme")).ExpectProblemAsync(HttpStatusCode.ServiceUnavailable);
+        var (response, trace) = await GetTracedAsync(alice, "/api/customers/acme");
+        using (response) await response.ExpectProblemAsync(HttpStatusCode.ServiceUnavailable);
 
-        var request = await RequestSpanAsync("/api/customers/acme");
-        var failed = Assert.Single(SpiceDbSpansIn(request.TraceId));
+        await RequestSpanAsync(trace);
+        var failed = Assert.Single(SpiceDbSpansIn(trace));
         Assert.Equal("spicedb.CheckPermission", failed.OperationName);
         Assert.Equal(ActivityStatusCode.Error, failed.Status);
         Assert.Equal("DeadlineExceeded", failed.StatusDescription);
@@ -75,14 +96,15 @@ public sealed partial class ObservabilityTests : ApiTestBase
     {
         using var anonymous = Host.ClientWithToken(null);
         var alice = await AsAsync("alice");
-        Host.Spans.Clear();
 
-        await anonymous.GetAsync("/health");
-        await (await alice.GetAsync("/api/me")).ExpectAsync(HttpStatusCode.OK);
-        await RequestSpanAsync("/api/me"); // the real request is exported...
+        var (health, healthTrace) = await GetTracedAsync(anonymous, "/health");
+        health.Dispose();
+        var (me, meTrace) = await GetTracedAsync(alice, "/api/me");
+        using (me) await me.ExpectAsync(HttpStatusCode.OK);
+        await RequestSpanAsync(meTrace); // the real request is exported...
 
-        // ...and no server span exists for /health.
-        Assert.DoesNotContain(Host.Spans.Snapshot(), a => a.Source.Name == "Microsoft.AspNetCore" && a.Tags.Any(t => t.Value == "/health"));
+        // ...and the health probe, made first and in a trace of its own, is not.
+        Assert.DoesNotContain(Host.Spans.Snapshot(), a => a.TraceId == healthTrace.Trace && a.Source.Name == "Microsoft.AspNetCore" && a.ParentSpanId == healthTrace.Caller);
     }
 
     // ---- Logs -----------------------------------------------------------------------------------------------------
@@ -91,11 +113,11 @@ public sealed partial class ObservabilityTests : ApiTestBase
     public async Task Each_permission_check_is_logged_at_debug_with_subject_permission_resource_result_duration_and_trace_id()
     {
         var alice = await AsAsync("alice");
-        Host.Spans.Clear();
 
-        await (await alice.GetAsync("/api/wallets/uk-ops")).ExpectAsync(HttpStatusCode.OK);
+        var (response, trace) = await GetTracedAsync(alice, "/api/wallets/uk-ops");
+        using (response) await response.ExpectAsync(HttpStatusCode.OK);
 
-        var traceId = (await RequestSpanAsync("/api/wallets/uk-ops")).TraceId.ToString();
+        var traceId = trace.Trace.ToString();
         var checks = Host.Logs.Entries
             .Where(l => l.Level == LogLevel.Debug && l.Category.EndsWith("SpiceDbAuthorizer", StringComparison.Ordinal) && l.Message.Contains(traceId, StringComparison.Ordinal))
             .ToList();
