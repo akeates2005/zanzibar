@@ -1,0 +1,16 @@
+# Phase 1: SpiceDB only. api, issuer and web services are added in Phases 4-6.
+# NOTE: this file has not been run yet; Docker is not installed in the dev environment (see DECISIONS.md D2/D3).
+services:
+  spicedb:
+    image: authzed/spicedb:v1.57.1
+    command:
+      - serve
+      - --datastore-engine=memory
+      - --telemetry-endpoint=
+      - --skip-release-check=true
+    environment:
+      # Development default lives here only (PRD rule 8). Override with SPICEDB_PRESHARED_KEY in the environment.
+      SPICEDB_GRPC_PRESHARED_KEY: ${SPICEDB_PRESHARED_KEY:-zanzibar-dev-only-key}
+    ports:
+      - "127.0.0.1:50051:50051"
+    restart: unless-stopped

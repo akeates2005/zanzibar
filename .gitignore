@@ -1,0 +1,22 @@
+# build output
+bin/
+obj/
+TestResults/
+node_modules/
+dist/
+web/e2e/test-results/
+playwright-report/
+# secrets and local config (never commit)
+.env
+.env.*
+!.env.example
+*.pfx
+*.pem
+*.key
+# editor / OS
+.vs/
+.idea/
+*.user
+.DS_Store
+# local scratch
+*.log

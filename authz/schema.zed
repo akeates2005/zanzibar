@@ -1,0 +1,83 @@
+definition user {}
+
+definition platform {
+    relation administrator: user | group#member
+    relation support: user | group#member
+
+    permission admin = administrator
+    permission support_view = support
+    permission view = admin + support_view
+    permission manage_access = admin
+    permission create_customer = admin
+    permission create_group = admin
+}
+
+definition group {
+    relation owner: customer | platform
+    relation member: user | group#member
+
+    permission manage = owner->admin
+    permission view = manage + member
+}
+
+definition customer {
+    relation parent: platform
+    relation administrator: user | group#member
+    relation viewer: user | group#member
+
+    permission admin = administrator + parent->admin
+    permission support_view = parent->support_view
+    permission view = viewer + admin + support_view
+    permission edit = admin
+    permission delete = parent->admin
+    permission manage_access = admin
+    permission create_domain = admin
+    permission create_group = admin
+}
+
+definition domain {
+    relation parent: customer
+    relation administrator: user | group#member
+    relation viewer: user | group#member
+
+    permission admin = administrator + parent->admin
+    permission support_view = parent->support_view
+    permission view = viewer + admin + support_view
+    permission edit = admin
+    permission delete = parent->admin
+    permission manage_access = admin
+    permission create_wallet = admin
+}
+
+definition wallet {
+    relation parent: domain
+    relation administrator: user | group#member
+    relation spender: user | group#member
+    relation viewer: user | group#member
+
+    permission admin = administrator + parent->admin
+    permission support_view = parent->support_view
+    permission spend = spender + admin
+    permission view = viewer + spend + support_view
+    permission edit = admin
+    permission top_up = admin
+    permission move = admin
+    permission delete = parent->admin
+    permission manage_access = admin
+    permission create_subscription = spend
+}
+
+definition subscription {
+    relation parent: wallet
+    relation administrator: user | group#member
+    relation operator: user | group#member
+    relation viewer: user | group#member
+
+    permission admin = administrator + parent->admin
+    permission support_view = parent->support_view
+    permission change_quantity = operator + admin
+    permission view = viewer + change_quantity + support_view
+    permission cancel = admin
+    permission delete = parent->admin
+    permission manage_access = admin
+}
