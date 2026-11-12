@@ -33,6 +33,11 @@ public static class AccessEndpoints
             return Results.Ok(new GrantResponse(result.AuditId));
         }).WithName("Revoke").WithTags("Access").RequiresOn(PlatformSchema.Permissions.ManageAccess, Target).Produces<GrantResponse>();
 
+        api.MapGet("/access/{type}/{id}/grantable-groups", async (string type, string id, AccessQueryService access, CurrentUser user, CancellationToken ct) =>
+            Results.Ok(await access.GrantableGroupsAsync(user.Actor, new ResourceRef(type, id), ct)))
+            .WithName("GetGrantableGroups").WithTags("Access")
+            .RequiresOn(PlatformSchema.Permissions.ManageAccess, Target).Produces<List<GroupSummary>>();
+
         api.MapGet("/access/{type}/{id}/effective", async (string type, string id, string? permission, AccessQueryService access, CancellationToken ct) =>
             Results.Ok(await access.EffectiveAsync(new ResourceRef(type, id), Results2.Require(permission, "permission"), ct)))
             .WithName("GetEffectiveAccess").WithTags("Access")
@@ -49,7 +54,7 @@ public static class AccessEndpoints
             await guard.RequireAsync(user.Actor, PlatformSchema.Permissions.ManageAccess, resource, ct);
             var explanation = await access.ExplainAsync(
                 Results2.Require(body.UserId, "userId"), Results2.Require(body.Permission, "permission"), resource, ct);
-            return Results.Ok(new ExplainResponse(explanation.Allowed, explanation.Trace is null ? null : ToDto(explanation.Trace)));
+            return Results.Ok(new ExplainResponse(explanation.Allowed, explanation.Trace is null ? [] : Flatten(explanation.Trace, 0).ToList()));
         }).WithName("ExplainAccess").WithTags("Access")
           .Requires(new AccessRequirement.HandlerChecked(PlatformSchema.Permissions.ManageAccess, "The resource is named in the body."))
           .Produces<ExplainResponse>();
@@ -87,7 +92,13 @@ public static class AccessEndpoints
         }
     }
 
-    private static ExplanationStepDto ToDto(ExplanationStep step) => new(
-        step.Resource.Type, step.Resource.Id, step.Permission, step.Subject?.Type, step.Subject?.Id, step.Subject?.Relation,
-        step.IsRelation, step.Allowed, step.Children.Select(ToDto).ToList());
+    /// <summary>Pre-order, so a client can render the tree by indenting each step by its depth.</summary>
+    private static IEnumerable<ExplanationStepDto> Flatten(ExplanationStep step, int depth)
+    {
+        yield return new ExplanationStepDto(
+            depth, step.Resource.Type, step.Resource.Id, step.Permission, step.Subject?.Type, step.Subject?.Id, step.Subject?.Relation,
+            step.IsRelation, step.Allowed);
+        foreach (var child in step.Children)
+            foreach (var inner in Flatten(child, depth + 1)) yield return inner;
+    }
 }

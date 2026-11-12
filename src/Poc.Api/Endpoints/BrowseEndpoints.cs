@@ -13,7 +13,8 @@ public static class BrowseEndpoints
 
     public static void Map(RouteGroupBuilder api)
     {
-        api.MapGet("/me", (CurrentUser user) => Results.Ok(new MeResponse(user.UserId, user.Name, user.Emails)))
+        api.MapGet("/me", async (CurrentUser user, ObjectReadService read, CancellationToken ct) =>
+            Results.Ok(new MeResponse(user.UserId, user.Name, user.Emails, await read.PermissionsAsync(user.Actor, PlatformSchema.Main, ct))))
             .WithName("GetMe").WithTags("Identity")
             .Requires(new AccessRequirement.Authenticated("A caller may always ask who they are."))
             .Produces<MeResponse>();

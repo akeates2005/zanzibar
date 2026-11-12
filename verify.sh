@@ -87,16 +87,46 @@ run_tests "unit" tests/Poc.UnitTests
 stage "Integration tests (adapter against a real SpiceDB)"
 run_tests "integration" tests/Poc.IntegrationTests
 
-stage "Test hygiene: no engine processes left behind"
-# Test engines are started with --metrics-enabled=false (the dev helper keeps metrics on), so any survivor is a test leak.
-if pgrep -f 'spicedb serve .*--metrics-enabled=false' >/dev/null 2>&1; then
-  pgrep -af 'spicedb serve .*--metrics-enabled=false' | cut -c1-160
-  fail "the test run left SpiceDB engine processes running"
+# --- Phase 5: the React client ---------------------------------------------------------------
+need node; need npm
+if [[ -d web/node_modules ]]; then :; else
+  stage "Web: install dependencies"
+  (cd web && npm ci) || fail "npm ci"
 fi
-pass "no SpiceDB test engines left running"
 
-stage "Not yet implemented (later phases)"
-skip "web" "no client until Phase 5 (tsc strict, eslint, Playwright)"
+stage "Web: API types are current with web/openapi.json"
+# The generated types are checked in. Regenerate to a temporary file and compare, so this works before and after a commit.
+(cd web && npx --no-install openapi-typescript openapi.json -o src/api/.schema.check.ts >/dev/null) || fail "openapi-typescript"
+if ! diff -q web/src/api/schema.ts web/src/api/.schema.check.ts >/dev/null; then
+  rm -f web/src/api/.schema.check.ts
+  fail "web/src/api/schema.ts is out of date: run 'npm run gen:api' in web/"
+fi
+rm -f web/src/api/.schema.check.ts
+pass "generated API types match web/openapi.json"
+
+stage "Web: TypeScript strict, ESLint, unit tests, production build"
+(cd web && npm run typecheck --silent) || fail "tsc --noEmit (strict)"
+(cd web && npm run lint --silent) || fail "eslint"
+(cd web && npm test --silent 2>&1 | tail -6) ; [[ ${PIPESTATUS[0]} -eq 0 ]] || fail "client unit tests"
+(cd web && npm run build --silent >/dev/null) || fail "vite build"
+pass "client: tsc strict, eslint (0 warnings), vitest, vite build"
+
+stage "Web: Playwright journeys against the native stack (SpiceDB, issuer, API, client) in Chrome"
+# Docker is unavailable (DECISIONS.md D2/D3), so Playwright starts the native processes itself. Chrome must be installed.
+command -v google-chrome >/dev/null 2>&1 || fail "google-chrome is required for the end-to-end journeys"
+(cd web && npx --no-install playwright test 2>&1 | grep -vE 'WebServer|chunk|dynamic import|codeSplitting|chunkSize' | tail -12) ; [[ ${PIPESTATUS[0]} -eq 0 ]] || fail "Playwright journeys"
+pass "5 Playwright journeys (admin wallet, spender, viewer, grant/revoke, no access)"
+
+stage "Test hygiene: no engine, API or issuer processes left behind"
+# Test engines are started with --metrics-enabled=false (the dev helper keeps metrics on), so any survivor is a test leak.
+# The end-to-end stack is identified by its fixed ports and project names.
+# Anchored to the executable (the command line must start with it), so a shell whose text merely mentions these names never matches.
+leaks="$(pgrep -af '^[^ ]*spicedb serve .*(--metrics-enabled=false|--metrics-addr=127\.0\.0\.1:9092)|^[^ ]*dotnet .*(Poc\.Api|Poc\.DevIssuer)\.dll' || true)"
+if [[ -n "$leaks" ]]; then
+  printf '%s\n' "$leaks" | cut -c1-160
+  fail "the test run left SpiceDB, API or issuer processes running"
+fi
+pass "no test processes left running"
 
 summary
 printf '\nverify.sh: OK (%d passed, %d skipped)\n' "${#PASSED[@]}" "${#SKIPPED[@]}"

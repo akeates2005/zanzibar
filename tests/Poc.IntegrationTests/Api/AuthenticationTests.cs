@@ -48,6 +48,21 @@ public sealed class AuthenticationTests : ApiTestBase
     }
 
     [Fact]
+    public async Task Me_reports_the_callers_platform_permissions_so_the_shell_knows_what_to_offer()
+    {
+        var priya = await (await (await AsAsync("priya")).GetAsync("/api/me")).JsonAsync();
+        Assert.True(priya.GetProperty("platformPermissions").GetProperty("admin").GetBoolean());
+        Assert.True(priya.GetProperty("platformPermissions").GetProperty("create_customer").GetBoolean());
+
+        var sam = await (await (await AsAsync("sam")).GetAsync("/api/me")).JsonAsync();
+        Assert.True(sam.GetProperty("platformPermissions").GetProperty("view").GetBoolean());
+        Assert.False(sam.GetProperty("platformPermissions").GetProperty("admin").GetBoolean());
+
+        var alice = await (await (await AsAsync("alice")).GetAsync("/api/me")).JsonAsync();
+        Assert.All(alice.GetProperty("platformPermissions").EnumerateObject(), p => Assert.False(p.Value.GetBoolean()));
+    }
+
+    [Fact]
     public async Task A_token_for_a_user_the_directory_does_not_know_is_authenticated_but_sees_nothing()
     {
         var token = Host.Tokens.Issue(Claims("nobody"), TimeSpan.FromMinutes(5)).Token;

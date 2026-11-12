@@ -134,6 +134,13 @@ public sealed class EfDirectoryQueries(IDbContextFactory<PocDbContext> factory) 
             .Select(g => new GroupSummary(g.Id, g.Name, g.OwnerType, g.OwnerId)).ToDictionaryAsync(g => g.Id, ct).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<GroupSummary>> AllGroupsOwnedByAsync(GroupOwnerType ownerType, string ownerId, CancellationToken ct)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct).ConfigureAwait(false);
+        return await db.Groups.AsNoTracking().Where(g => g.OwnerType == ownerType && g.OwnerId == ownerId)
+            .OrderBy(g => g.Name).Select(g => new GroupSummary(g.Id, g.Name, g.OwnerType, g.OwnerId)).ToListAsync(ct).ConfigureAwait(false);
+    }
+
     public async Task<IReadOnlyList<GroupSummary>> GroupsOwnedByAsync(
         GroupOwnerType ownerType, string ownerId, IReadOnlyCollection<string> allowedIds, CancellationToken ct)
     {

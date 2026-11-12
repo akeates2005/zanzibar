@@ -36,10 +36,14 @@ public static class GroupEndpoints
             .RequiresOn(PlatformSchema.Permissions.CreateGroup, ResourceLocator.Platform)
             .Produces<GroupCreatedDto>(StatusCodes.Status201Created).Produces<PendingResponse>(StatusCodes.Status202Accepted);
 
-        api.MapGet("/groups/{id}", async (string id, AccessQueryService access, CancellationToken ct) =>
-            Results.Ok(await access.GroupDetailAsync(id, ct)))
+        api.MapGet("/groups/{id}", async (string id, AccessQueryService access, ObjectReadService read, CurrentUser user, CancellationToken ct) =>
+            {
+                var detail = await access.GroupDetailAsync(id, ct);
+                var permissions = await read.PermissionsAsync(user.Actor, new ResourceRef(GroupSchema.Type, id), ct);
+                return Results.Ok(new GroupDetailDto(detail.Group, detail.Members, detail.GrantedOn, permissions));
+            })
             .WithName("GetGroup").WithTags("Groups")
-            .RequiresOn(GroupSchema.Permissions.View, ResourceLocator.Route(GroupSchema.Type)).Produces<GroupDetailView>();
+            .RequiresOn(GroupSchema.Permissions.View, ResourceLocator.Route(GroupSchema.Type)).Produces<GroupDetailDto>();
 
         api.MapDelete("/groups/{id}", async (string id, AccessService access, CurrentUser user, CancellationToken ct) =>
             Results2.Deleted(id, await access.DeleteGroupAsync(user.Actor, id, ct)))

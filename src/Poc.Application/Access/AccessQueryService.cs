@@ -4,6 +4,7 @@ using Poc.Application.Common;
 using Poc.Application.Persistence;
 using Poc.Application.Queries;
 using Poc.Domain.Access;
+using Poc.Domain.Directory;
 
 namespace Poc.Application.Access;
 
@@ -74,6 +75,26 @@ public sealed class AccessQueryService(
         var holders = await authorizer.LookupSubjectsAsync(resource, permission, UserSchema.Type, ct).ConfigureAwait(false);
         var views = await ResolveAsync(holders, ct).ConfigureAwait(false);
         return holders.Select(h => views[h]).OrderBy(v => v.DisplayName, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// The groups that may be granted on <paramref name="resource"/> under the service rules: the groups of the customer the
+    /// object sits under, plus platform groups when the caller is a platform administrator (only they may grant those).
+    /// A domain administrator cannot view the customer's group list, which is why the picker needs this instead.
+    /// </summary>
+    public async Task<IReadOnlyList<GroupSummary>> GrantableGroupsAsync(Actor actor, ResourceRef resource, CancellationToken ct)
+    {
+        var groups = new List<GroupSummary>();
+        var customerId = resource.Type == CustomerSchema.Type
+            ? resource.Id
+            : (await commerce.AncestorsAsync(resource, ct).ConfigureAwait(false)).FirstOrDefault(a => a.Type == CustomerSchema.Type)?.Id;
+        if (customerId is not null)
+            groups.AddRange(await directory.AllGroupsOwnedByAsync(GroupOwnerType.Customer, customerId, ct).ConfigureAwait(false));
+
+        if (await authorizer.CheckAsync(actor.Subject, PlatformSchema.Permissions.Admin, PlatformSchema.Main, ct).ConfigureAwait(false))
+            groups.AddRange(await directory.AllGroupsOwnedByAsync(GroupOwnerType.Platform, PlatformSchema.MainId, ct).ConfigureAwait(false));
+
+        return groups.OrderBy(g => g.Name, StringComparer.Ordinal).ToList();
     }
 
     /// <summary>Allowed or denied for any user, permission and resource, with the engine's trace where it returns one.</summary>

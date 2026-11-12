@@ -24,7 +24,11 @@ public sealed record ExplainRequest(string? UserId, string? Permission, string? 
 
 // ---- Responses --------------------------------------------------------------------------------------------------
 
-public sealed record MeResponse(string UserId, string? Name, IReadOnlyList<string> Emails);
+/// <param name="PlatformPermissions">The caller's permissions on the platform, so the shell can decide what to offer (System, new customer).</param>
+public sealed record MeResponse(string UserId, string? Name, IReadOnlyList<string> Emails, IReadOnlyDictionary<string, bool> PlatformPermissions);
+
+public sealed record GroupDetailDto(
+    GroupSummary Group, IReadOnlyList<GroupMemberView> Members, IReadOnlyList<GroupGrantView> GrantedOn, IReadOnlyDictionary<string, bool> Permissions);
 
 /// <summary>Returned with 202 when a change is saved but the engine could not be told yet.</summary>
 public sealed record PendingResponse(string Id, bool AuthorisationPending);
@@ -53,11 +57,13 @@ public sealed record TreeNodeDto(string Type, string Id, string Name, IReadOnlyL
 
 public sealed record GroupCreatedDto(string Id, string Name, bool AuthorisationPending);
 
+/// <summary>One step of the engine's check trace. The trace is a flat pre-order list; <paramref name="Depth"/> says how deeply a step is nested.</summary>
 public sealed record ExplanationStepDto(
-    string ResourceType, string ResourceId, string Permission, string? SubjectType, string? SubjectId, string? SubjectRelation,
-    bool IsRelation, bool Allowed, IReadOnlyList<ExplanationStepDto> Children);
+    int Depth, string ResourceType, string ResourceId, string Permission, string? SubjectType, string? SubjectId, string? SubjectRelation,
+    bool IsRelation, bool Allowed);
 
-public sealed record ExplainResponse(bool Allowed, ExplanationStepDto? Trace);
+/// <param name="Trace">Empty when the engine returned no trace.</param>
+public sealed record ExplainResponse(bool Allowed, IReadOnlyList<ExplanationStepDto> Trace);
 
 public sealed record GrantResponse(long AuditId);
 

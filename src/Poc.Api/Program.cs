@@ -14,6 +14,9 @@ var config = builder.Configuration;
 // ---- Configuration: every environment-specific value comes from configuration, never from code -------------------
 var pocOptions = new PocOptions();
 config.GetSection("Poc").Bind(pocOptions);
+// A relative schema path means "next to the application", not "relative to wherever the process was started": the working
+// directory differs under `dotnet run`, a service manager or a container, and the build copies the schema beside the binaries.
+if (!Path.IsPathRooted(pocOptions.SchemaPath)) pocOptions.SchemaPath = Path.Combine(AppContext.BaseDirectory, pocOptions.SchemaPath);
 
 var authority = config["Authentication:Authority"];
 if (string.IsNullOrWhiteSpace(authority))
@@ -87,10 +90,51 @@ builder.Services.AddOpenApi(o => o.AddDocumentTransformer((document, _, _) =>
         Scheme = "bearer",
         BearerFormat = "JWT",
     };
+    document.Components.Schemas["Problem"] = new Microsoft.OpenApi.Models.OpenApiSchema
+    {
+        Type = "object",
+        Description = "RFC 9457 problem details.",
+        Properties = new Dictionary<string, Microsoft.OpenApi.Models.OpenApiSchema>
+        {
+            ["type"] = new() { Type = "string", Nullable = true },
+            ["title"] = new() { Type = "string" },
+            ["status"] = new() { Type = "integer", Format = "int32" },
+            ["detail"] = new() { Type = "string", Nullable = true },
+            ["traceId"] = new() { Type = "string", Nullable = true },
+            ["permission"] = new() { Type = "string", Nullable = true, Description = "Present on 403: the permission the caller lacks." },
+            ["code"] = new() { Type = "string", Nullable = true, Description = "Present on 422: a stable rule code." },
+        },
+    };
     document.SecurityRequirements.Add(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
     {
         [new Microsoft.OpenApi.Models.OpenApiSecurityScheme { Reference = new Microsoft.OpenApi.Models.OpenApiReference { Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme, Id = "bearer" } }] = [],
     });
+    return Task.CompletedTask;
+}).AddOperationTransformer((operation, context, _) =>
+{
+    // Every /api operation can answer with an RFC 9457 problem; describe it so generated clients can type their errors.
+    if (context.Description.RelativePath?.StartsWith("api/", StringComparison.Ordinal) != true) return Task.CompletedTask;
+    var problem = new Microsoft.OpenApi.Models.OpenApiMediaType
+    {
+        Schema = new Microsoft.OpenApi.Models.OpenApiSchema
+        {
+            Reference = new Microsoft.OpenApi.Models.OpenApiReference { Type = Microsoft.OpenApi.Models.ReferenceType.Schema, Id = "Problem" },
+        },
+    };
+    foreach (var (status, text) in new[]
+             {
+                 ("400", "Malformed request"), ("401", "Not signed in"), ("403", "Missing permission (named in the problem)"),
+                 ("404", "No such object, or not visible to the caller"), ("409", "Conflicts with current state"),
+                 ("422", "Refused by a rule (code in the problem)"), ("503", "Authorisation service unavailable or system starting"),
+             })
+    {
+        operation.Responses.TryAdd(status, new Microsoft.OpenApi.Models.OpenApiResponse
+        {
+            Description = text,
+            Content = { ["application/problem+json"] = problem },
+        });
+    }
+
     return Task.CompletedTask;
 }));
 

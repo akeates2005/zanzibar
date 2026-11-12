@@ -33,4 +33,7 @@ public interface IDirectoryQueries
 
     /// <summary>Groups owned by the customer (or by the platform), limited to <paramref name="allowedIds"/>.</summary>
     Task<IReadOnlyList<GroupSummary>> GroupsOwnedByAsync(GroupOwnerType ownerType, string ownerId, IReadOnlyCollection<string> allowedIds, CancellationToken ct);
+
+    /// <summary>Every group with this owner, whether or not the caller can view it. For the grant picker only.</summary>
+    Task<IReadOnlyList<GroupSummary>> AllGroupsOwnedByAsync(GroupOwnerType ownerType, string ownerId, CancellationToken ct);
 }

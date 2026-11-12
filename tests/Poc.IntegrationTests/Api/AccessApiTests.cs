@@ -189,22 +189,16 @@ public sealed class AccessApiTests : ApiTestBase
 
         var allowed = await (await alice.PostJsonAsync("/api/access/explain", new { userId = "heidi", permission = "spend", resourceType = "wallet", resourceId = "uk-ops" })).ExpectAsync(HttpStatusCode.OK);
         Assert.True(allowed.GetProperty("allowed").GetBoolean());
-        var trace = allowed.GetProperty("trace");
-        Assert.Equal(("wallet", "uk-ops", "spend"), (trace.GetProperty("resourceType").GetString(), trace.GetProperty("resourceId").GetString(), trace.GetProperty("permission").GetString()));
-        Assert.True(trace.GetProperty("allowed").GetBoolean());
-        Assert.True(Flatten(trace).Any(n => n.GetProperty("resourceType").GetString() == "group" && n.GetProperty("resourceId").GetString() == "uk-contractors"),
-            "the trace should pass through Heidi's group");
+        var steps = allowed.GetProperty("trace").EnumerateArray().ToList();
+        var root = steps[0];
+        Assert.Equal((0, "wallet", "uk-ops", "spend"), (root.GetProperty("depth").GetInt32(), root.GetProperty("resourceType").GetString(), root.GetProperty("resourceId").GetString(), root.GetProperty("permission").GetString()));
+        Assert.True(root.GetProperty("allowed").GetBoolean());
+        Assert.Contains(steps, n => n.GetProperty("resourceType").GetString() == "group" && n.GetProperty("resourceId").GetString() == "uk-contractors");
+        Assert.True(steps.Skip(1).All(n => n.GetProperty("depth").GetInt32() >= 1), "only the root is at depth 0");
 
         var denied = await (await alice.PostJsonAsync("/api/access/explain", new { userId = "dave", permission = "spend", resourceType = "wallet", resourceId = "uk-ops" })).ExpectAsync(HttpStatusCode.OK);
         Assert.False(denied.GetProperty("allowed").GetBoolean());
-        Assert.False(denied.GetProperty("trace").GetProperty("allowed").GetBoolean());
-    }
-
-    private static IEnumerable<JsonElement> Flatten(JsonElement node)
-    {
-        yield return node;
-        foreach (var child in node.GetProperty("children").EnumerateArray())
-            foreach (var inner in Flatten(child)) yield return inner;
+        Assert.False(denied.GetProperty("trace").EnumerateArray().First().GetProperty("allowed").GetBoolean());
     }
 
     [Fact]
@@ -236,6 +230,56 @@ public sealed class AccessApiTests : ApiTestBase
         await (await (await AsAsync("erin")).GetAsync("/api/access/audit?type=customer&id=acme")).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "manage_access");
         await (await (await AsAsync("alice")).GetAsync("/api/access/audit")).ExpectProblemAsync(HttpStatusCode.NotFound);
         await (await (await AsAsync("alice")).GetAsync("/api/access/audit?type=group&id=uk-it")).ExpectProblemAsync(HttpStatusCode.NotFound);
+    }
+
+    // ---- Grantable groups (the Access tab's group picker) -----------------------------------------------------
+
+    [Fact]
+    public async Task A_domain_admin_is_offered_the_customers_groups_even_though_he_cannot_view_the_customer_or_its_group_list()
+    {
+        var bob = await AsAsync("bob");
+        await (await bob.GetAsync("/api/customers/acme/groups")).ExpectProblemAsync(HttpStatusCode.NotFound); // why the picker needs its own list
+
+        var groups = await (await bob.GetAsync("/api/access/domain/acme-uk/grantable-groups")).ExpectAsync(HttpStatusCode.OK);
+
+        Assert.Equal(["finance-ap", "uk-contractors", "uk-it"], Ids(groups));
+        Assert.All(groups.EnumerateArray(), g => Assert.Equal("Customer", g.GetProperty("ownerType").GetString()));
+    }
+
+    [Fact]
+    public async Task Platform_groups_are_offered_only_to_platform_admins_and_every_offered_group_passes_the_service_rules()
+    {
+        var alice = await AsAsync("alice");
+        var priya = await AsAsync("priya");
+
+        Assert.DoesNotContain("support-team", Ids(await (await alice.GetAsync("/api/access/wallet/uk-ops/grantable-groups")).JsonAsync()));
+        var forPriya = await (await priya.GetAsync("/api/access/wallet/uk-ops/grantable-groups")).ExpectAsync(HttpStatusCode.OK);
+        Assert.Equal(["finance-ap", "support-team", "uk-contractors", "uk-it"], Ids(forPriya));
+        Assert.Equal(["support-team"], Ids(await (await priya.GetAsync("/api/access/platform/main/grantable-groups")).ExpectAsync(HttpStatusCode.OK))); // a customer's groups cannot be granted on the platform
+
+        // Each offered group really is grantable there (the offer and the rule must agree).
+        foreach (var id in Ids(forPriya))
+            await (await priya.PutJsonAsync("/api/access/wallet/uk-ops/grants", new { relation = "viewer", subject = new { type = "group", id } })).ExpectAsync(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Another_customers_groups_are_never_offered_and_the_list_needs_manage_access()
+    {
+        Assert.Equal(0, (await (await (await AsAsync("grace")).GetAsync("/api/access/wallet/globex-ops/grantable-groups")).ExpectAsync(HttpStatusCode.OK)).GetArrayLength());
+        await (await (await AsAsync("erin")).GetAsync("/api/access/customer/acme/grantable-groups")).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "manage_access");
+        await (await (await AsAsync("frank")).GetAsync("/api/access/customer/acme/grantable-groups")).ExpectProblemAsync(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Group_detail_carries_the_callers_permissions_so_edit_controls_can_be_disabled()
+    {
+        var admin = await (await (await AsAsync("alice")).GetAsync("/api/groups/uk-it")).ExpectAsync(HttpStatusCode.OK);
+        Assert.True(admin.Permission("manage"));
+        Assert.True(admin.Permission("view"));
+
+        var member = await (await (await AsAsync("bob")).GetAsync("/api/groups/uk-it")).ExpectAsync(HttpStatusCode.OK);
+        Assert.False(member.Permission("manage")); // a member can see the group but not change it
+        Assert.True(member.Permission("view"));
     }
 
     // ---- Groups ---------------------------------------------------------------------------------------------------
