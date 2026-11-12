@@ -10,7 +10,8 @@ public sealed class CapturingLoggerProvider : ILoggerProvider
 {
     private readonly ConcurrentQueue<LogEntry> _entries = new();
 
-    public IReadOnlyList<LogEntry> Entries => [.. _entries];
+    /// <summary>A snapshot. `ConcurrentQueue.ToArray` is safe while other threads log; a spread over the queue is not.</summary>
+    public IReadOnlyList<LogEntry> Entries => _entries.ToArray();
 
     public ILogger CreateLogger(string categoryName) => new Capture(categoryName, _entries);
 
