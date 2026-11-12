@@ -171,6 +171,56 @@ public sealed partial class SpiceDbAuthorizer(SpiceDbConnection connection, ILog
         return subjects;
     }
 
+    /// <summary>Nodes beyond this are dropped from a trace so one pathological schema cannot produce an enormous response.</summary>
+    private const int TraceNodeLimit = 500;
+
+    public async Task<CheckExplanation> ExplainAsync(SubjectRef subject, string permission, ResourceRef resource, CancellationToken ct)
+    {
+        RequireName(permission);
+        var request = new Az.CheckPermissionRequest
+        {
+            Consistency = SpiceDbConnection.FullyConsistent,
+            Resource = resource.ToProto(),
+            Subject = subject.ToProto(),
+            Permission = permission,
+            WithTracing = true,
+        };
+        var started = Stopwatch.GetTimestamp();
+        var response = await connection.RunAsync(
+            "CheckPermission",
+            deadline => connection.Permissions.CheckPermissionAsync(request, deadline: deadline, cancellationToken: ct).ResponseAsync,
+            ct).ConfigureAwait(false);
+        var allowed = response.Permissionship == Az.CheckPermissionResponse.Types.Permissionship.HasPermission;
+        LogCheck(subject.ToString(), permission, resource.ToString(), allowed, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+
+        var budget = TraceNodeLimit;
+        return new CheckExplanation(allowed, response.DebugTrace?.Check is { } root ? MapTrace(root, ref budget) : null);
+    }
+
+    private static ExplanationStep MapTrace(Az.CheckDebugTrace trace, ref int budget)
+    {
+        budget--;
+        var children = new List<ExplanationStep>();
+        if (trace.SubProblems is { } sub)
+        {
+            foreach (var child in sub.Traces)
+            {
+                if (budget <= 0) break;
+                children.Add(MapTrace(child, ref budget));
+            }
+        }
+
+        return new ExplanationStep(
+            new ResourceRef(trace.Resource.ObjectType, trace.Resource.ObjectId),
+            trace.Permission,
+            trace.Subject?.Object is { } s
+                ? new SubjectRef(s.ObjectType, s.ObjectId, string.IsNullOrEmpty(trace.Subject.OptionalRelation) ? null : trace.Subject.OptionalRelation)
+                : null,
+            trace.PermissionType == Az.CheckDebugTrace.Types.PermissionType.Relation,
+            trace.Result == Az.CheckDebugTrace.Types.Permissionship.HasPermission,
+            children);
+    }
+
     private static void RequireName(string value)
     {
         if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException("Permission and type names must not be empty.");

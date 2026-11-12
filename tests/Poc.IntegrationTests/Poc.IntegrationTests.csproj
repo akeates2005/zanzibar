@@ -11,6 +11,9 @@
     <ProjectReference Include="..\..\src\Poc.Domain\Poc.Domain.csproj" />
     <ProjectReference Include="..\..\src\Poc.Application\Poc.Application.csproj" />
     <ProjectReference Include="..\..\src\Poc.Infrastructure\Poc.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Poc.Api\Poc.Api.csproj" />
+    <ProjectReference Include="..\..\src\Poc.DevIssuer\Poc.DevIssuer.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.23" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

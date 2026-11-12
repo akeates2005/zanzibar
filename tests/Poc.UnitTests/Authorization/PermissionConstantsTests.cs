@@ -76,6 +76,24 @@ public sealed class PermissionConstantsTests
         Assert.Contains("refund", drifted.Types["subscription"].Permissions);
     }
 
+    [Theory]
+    [MemberData(nameof(SchemaTypes))]
+    public void The_schema_catalog_lists_every_permission_of_each_type_in_full(string typeName)
+    {
+        Assert.Equal(Schema.Types[typeName].Permissions, SchemaCatalog.PermissionsOf(typeName).ToHashSet().Order());
+        Assert.True(SchemaCatalog.IsKnownType(typeName));
+    }
+
+    [Fact]
+    public void The_schema_catalog_knows_nothing_about_unknown_types_or_permissions()
+    {
+        Assert.Empty(SchemaCatalog.PermissionsOf("nonsense"));
+        Assert.False(SchemaCatalog.IsKnownType("nonsense"));
+        Assert.True(SchemaCatalog.HasPermission("wallet", "top_up"));
+        Assert.False(SchemaCatalog.HasPermission("wallet", "cancel")); // a subscription permission
+        Assert.False(SchemaCatalog.HasPermission("nonsense", "view"));
+    }
+
     [Fact]
     public void Main_platform_ref_uses_the_constants()
     {

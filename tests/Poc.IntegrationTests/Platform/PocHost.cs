@@ -56,8 +56,17 @@ public sealed class PocHost : IAsyncDisposable
 
         var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
         var host = new PocHost(engine, provider, provider.GetRequiredService<IRelationshipStore>() as FaultInjectingRelationshipStore ?? faults!, options);
-        if (runStartup) await host.ResetAsync();
-        return host;
+        if (!runStartup) return host;
+        try
+        {
+            await host.ResetAsync();
+            return host;
+        }
+        catch
+        {
+            await host.DisposeAsync(); // xunit does not dispose a host whose InitializeAsync threw
+            throw;
+        }
     }
 
     /// <summary>Creates the tables and opens the keep-alive connection without seeding, for persistence-only tests.</summary>

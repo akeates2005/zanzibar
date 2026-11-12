@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\Poc.Domain\Poc.Domain.csproj" />
+    <ProjectReference Include="..\Poc.Application\Poc.Application.csproj" />
+    <ProjectReference Include="..\Poc.Infrastructure\Poc.Infrastructure.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.23" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.23" />
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.23.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The schema ships with the API, so start-up can write exactly what was validated. -->
+    <Content Include="..\..\authz\schema.zed" Link="authz\schema.zed" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

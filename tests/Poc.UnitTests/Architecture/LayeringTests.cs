@@ -126,6 +126,16 @@ public sealed class LayeringTests
     }
 
     [Fact]
+    public void The_read_side_of_access_management_can_only_read_tuples()
+    {
+        // AccessQueryService lists grants and group membership. It takes IRelationshipReader, so it cannot write one.
+        var result = Types.InAssembly(Application).That().HaveName("AccessQueryService")
+            .ShouldNot().HaveDependencyOn(typeof(IRelationshipStore).FullName!).GetResult();
+        Assert.True(result.IsSuccessful);
+        Assert.Single(Types.InAssembly(Application).That().HaveName("AccessQueryService").GetTypes());
+    }
+
+    [Fact]
     public void Commerce_types_have_no_dependency_on_the_relationship_store_or_the_engine_client()
     {
         var result = Types.InAssembly(Domain).That().ResideInNamespace("Poc.Domain.Commerce")

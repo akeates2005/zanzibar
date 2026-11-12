@@ -2,8 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Poc.Application.Access;
+using Poc.Application.Authorization;
+using Poc.Application.Commerce;
 using Poc.Application.Persistence;
 using Poc.Application.Projection;
+using Poc.Application.Queries;
 using Poc.Application.Reconciliation;
 using Poc.Infrastructure.Persistence;
 using Poc.Infrastructure.Projection;
@@ -38,10 +41,16 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IAuthzTokenStore, EfAuthzTokenStore>();
         services.AddSingleton<IStructuralReferenceSource, EfReconciliationSource>();
         services.AddSingleton<IAccessLog, AccessLog>();
+        services.AddSingleton<IRelationshipReader>(sp => sp.GetRequiredService<IRelationshipStore>()); // same instance, read-only view
 
         services.AddSingleton<OutboxProjector>();
         services.AddSingleton<IAuthorizationProjector>(sp => sp.GetRequiredService<OutboxProjector>());
         services.AddSingleton<IOutboxInspector>(sp => sp.GetRequiredService<OutboxProjector>());
+        services.AddSingleton<ICommerceQueries, EfCommerceQueries>();
+        services.AddSingleton<IDirectoryQueries, EfDirectoryQueries>();
+        services.AddScoped<CommerceService>();
+        services.AddScoped<ObjectReadService>();
+        services.AddScoped<AccessQueryService>();
         services.AddScoped<AccessService>();
         services.AddScoped<DefaultGrantPolicy>();
 

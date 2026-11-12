@@ -8,6 +8,27 @@ namespace Poc.IntegrationTests.Fixtures;
 /// <summary>Runs the pinned <c>spicedb</c> binary with the memory datastore on free loopback ports.</summary>
 public sealed class NativeSpiceDbHost : ISpiceDbHost
 {
+    /// <summary>
+    /// Every engine this process started and has not yet stopped. If the test run ends abnormally (an unhandled exception, an
+    /// aborted run) the exit hook kills them, so a failed test can never leave an orphaned engine behind.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, Process> Live = new();
+
+    static NativeSpiceDbHost() => AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+    {
+        foreach (var process in Live.Values)
+        {
+            try
+            {
+                if (!process.HasExited) process.Kill(entireProcessTree: true);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                // already gone
+            }
+        }
+    };
+
     private readonly Process _process;
     private readonly StringBuilder _log = new();
 
@@ -21,6 +42,20 @@ public sealed class NativeSpiceDbHost : ISpiceDbHost
     public string Endpoint { get; }
 
     public string PresharedKey { get; }
+
+    /// <summary>Freezes the engine process (SIGSTOP): it keeps its port open but answers nothing, like a paused container.</summary>
+    public void Pause() => Signal("-STOP");
+
+    /// <summary>Unfreezes the engine (SIGCONT).</summary>
+    public void Resume() => Signal("-CONT");
+
+    private void Signal(string signal)
+    {
+        using var kill = Process.Start(new ProcessStartInfo("kill", [signal, _process.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)]) { UseShellExecute = false })
+            ?? throw new InvalidOperationException("Could not run kill.");
+        kill.WaitForExit();
+        if (kill.ExitCode != 0) throw new InvalidOperationException($"kill {signal} failed with exit code {kill.ExitCode}.");
+    }
 
     public string Log
     {
@@ -52,6 +87,7 @@ public sealed class NativeSpiceDbHost : ISpiceDbHost
         info.Environment["SPICEDB_GRPC_PRESHARED_KEY"] = key;
 
         var process = Process.Start(info) ?? throw new InvalidOperationException($"Could not start '{binary}'.");
+        Live[process.Id] = process;
         var host = new NativeSpiceDbHost(process, port, key);
         process.OutputDataReceived += (_, e) => host.Append(e.Data);
         process.ErrorDataReceived += (_, e) => host.Append(e.Data);
@@ -97,6 +133,7 @@ public sealed class NativeSpiceDbHost : ISpiceDbHost
     {
         try
         {
+            Live.TryRemove(_process.Id, out _);
             if (!_process.HasExited)
             {
                 _process.Kill(entireProcessTree: true);

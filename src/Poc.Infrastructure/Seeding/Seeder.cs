@@ -27,7 +27,7 @@ public sealed class Seeder(
         var now = time.GetUtcNow();
         const string by = Actor.SystemUserId;
 
-        foreach (var (id, name) in SeedData.Users) users.Add(User.Create(id, name, $"{id}@zanzibar.example"));
+        foreach (var (id, name) in SeedData.Users) users.Add(User.Create(id, name, SeedUsers.EmailFor(id)));
         foreach (var (id, name) in SeedData.Customers) customers.Add(Customer.Create(name, by, now, id));
         foreach (var (id, customerId, name) in SeedData.Domains) domains.Add(CustomerDomain.Create(customerId, name, by, now, id));
         foreach (var (id, domainId, name, balance) in SeedData.Wallets)

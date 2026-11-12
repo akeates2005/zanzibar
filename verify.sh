@@ -87,6 +87,14 @@ run_tests "unit" tests/Poc.UnitTests
 stage "Integration tests (adapter against a real SpiceDB)"
 run_tests "integration" tests/Poc.IntegrationTests
 
+stage "Test hygiene: no engine processes left behind"
+# Test engines are started with --metrics-enabled=false (the dev helper keeps metrics on), so any survivor is a test leak.
+if pgrep -f 'spicedb serve .*--metrics-enabled=false' >/dev/null 2>&1; then
+  pgrep -af 'spicedb serve .*--metrics-enabled=false' | cut -c1-160
+  fail "the test run left SpiceDB engine processes running"
+fi
+pass "no SpiceDB test engines left running"
+
 stage "Not yet implemented (later phases)"
 skip "web" "no client until Phase 5 (tsc strict, eslint, Playwright)"
 

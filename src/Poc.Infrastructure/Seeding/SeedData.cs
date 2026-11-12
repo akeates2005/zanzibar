@@ -1,5 +1,6 @@
 using Poc.Application.Authorization;
 using Poc.Application.Authorization.Schema;
+using Poc.Domain.Directory;
 
 namespace Poc.Infrastructure.Seeding;
 
@@ -9,12 +10,7 @@ namespace Poc.Infrastructure.Seeding;
 /// </summary>
 public static class SeedData
 {
-    public static readonly (string Id, string Name)[] Users =
-    [
-        ("priya", "Priya Patel"), ("sam", "Sam Okafor"), ("alice", "Alice Armstrong"), ("bob", "Bob Baker"),
-        ("heidi", "Heidi Hughes"), ("carol", "Carol Chen"), ("dave", "Dave Dunn"), ("erin", "Erin Evans"),
-        ("grace", "Grace Green"), ("frank", "Frank Foster"),
-    ];
+    public static IReadOnlyList<(string Id, string Name)> Users => SeedUsers.All;
 
     public static readonly (string Id, string Name)[] Customers = [("acme", "Acme Ltd"), ("globex", "Globex Corporation")];
 
