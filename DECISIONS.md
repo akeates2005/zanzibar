@@ -13,6 +13,7 @@ Choices made where PRD.md is silent or where the environment forced a deviation.
 | D5 | Pause scenario: "SpiceDB container is paused and Alice creates a wallet: 202 with the pending flag" | With the engine unreachable **before** the request, a create is **503**; **202** is returned only when the engine fails **after** the permission check and before the tuple write | The PRD's own rules make the literal scenario unreachable: every request first checks the caller's permission through the engine, fully consistent, and a failed check never falls back to allow (rules 3 and 5), so a paused engine fails that check and the request is refused with 503. Rather than weaken fail-closed, I implemented 202 for the window the PRD's design genuinely allows and test both paths for real: the engine process is frozen with SIGSTOP (503, bounded by the deadline, nothing created, reads fail closed too, recovery on thaw), and an injected write failure after the check gives 202, invisible until the background worker catches up, then visible, with reconciliation reporting no drift. Raised under PRD rule 2 and resolved by Andrew's standing delegation of design authority (2026-11-12). |
 | D6 | Phase 5 exit: "The five Playwright journeys pass against Compose" | The five journeys pass against the **native stack** (SpiceDB, stub issuer, API, built client) in the installed Google Chrome; Playwright starts and stops all four processes and never reuses a running one | Docker is unavailable (D2, D3), so Compose cannot run. The journeys, the browser and every process are the real ones; only the way the four services are started differs. Running them against Compose once Docker exists is a change to `playwright.config.ts`'s `webServer` block, not to any journey. |
 | D7 | Phase 6 exit: "`docker compose up` from a clean clone reaches a working application with no manual step" | **Not verified.** The Dockerfiles and the full Compose file are written and pass static checks, and everything about them except the container runtime is exercised natively, but no image has ever been built or run | Docker is unavailable (D2, D3). What *is* proven: `scripts/check-compose.py` enforces the file's invariants (localhost-only ports, pinned SpiceDB, telemetry off, no baked secrets, non-root images, the API's authority equal to the name tokens carry), and `npm run e2e:published` runs ten browser journeys against the same `dotnet publish` output the image contains, serving the built client, in Production, with every setting from the environment and the issuer reached by a different name than its tokens carry. What is **not** proven: that the images build, that the base-image tags resolve as expected on the target, that the container user can read its files, and that service start order and networking behave. These are the first things to check when Docker is available. |
+| D8 | Object types `domain`, `wallet`, `subscription`; the API names the object in the path (`/access/{type}/{id}/grants`, `/{parentType}/{id}/children`) | **`commerce/domain`, `commerce/wallet`, `commerce/subscription`**; the API names the object in the query string (`/access/grants?type=&id=`, `/children?type=&id=`) | Agreed with Andrew on 2026-11-17, as preparation for a shared, multi-team engine. Access values are unchanged; the matrix cells are renamed, not altered (PRD rule 4). See "Team-prefixed object types" below. |
 
 The integration test fixture will sit behind an interface so it can start a native SpiceDB process now and swap to Testcontainers later without changing tests.
 
@@ -192,3 +193,87 @@ The integration test fixture will sit behind an interface so it can start a nati
 - **Mutation-checked on scratch edits (all caught, all restored):** schema loss never triggering a rebuild, a missing schema reported as fine, `jwks_uri` using the public name, the SPA fallback swallowing API paths, SpiceDB calls not being spans, an email reaching a log, request logging left on, and the outbox marking a message done *before* the engine write.
 - **A flaky test, found by running from a clean clone.** The first clean-clone `verify.sh` failed one tracing test that had always passed in the working tree. `ActivitySource`s are process-wide, so every test host in a test process also receives the spans of the hosts running in parallel; a test that found "the" server span by request path could pick up another test's request. Tracing tests now send a W3C `traceparent` with a trace id of their own, and find the server span as the one whose parent is the caller span they sent. That also surfaced that a first token validation makes the API call the issuer, and the trace context propagates, so the issuer's own server spans are part of the same trace (propagation works across the discovery and key fetch). The full integration suite was then run three times to look for other order- or timing-dependent tests: none.
 - **A second harness race, found the same way.** `CapturingLoggerProvider.Entries` copied its `ConcurrentQueue` with a collection spread, which reads the count and then copies, so a log line arriving in between threw `IndexOutOfRange`; it only showed on the slower clean-clone run. It now uses `ToArray()`, the thread-safe snapshot. To look for others, the whole integration suite was run five times and then twice concurrently (halving the CPU each gets): 372 of 372 every time. Running `verify.sh` from a clean clone is now part of how a phase is closed, because it is slower and colder than a working tree and shakes out timing-dependent tests that never fail where they were written.
+
+## Team-prefixed object types (D8, 2026-11-17)
+
+Preparation for the production direction: one shared SpiceDB, with the platform team owning `user`, `platform`, `customer`
+and `group`, and each app team owning its own resource types (see the 2026-11-15 design discussion).
+
+**What was decided**
+- **The shared types stay unprefixed; each team's types carry a one-level team prefix.** The PoC's business objects become
+  `commerce/domain`, `commerce/wallet` and `commerce/subscription`. A type name is stored in every tuple, so adding a
+  prefix after go-live means rewriting every tuple; starting with one costs a few characters. A prefix is the form SpiceDB
+  documents for "multiple products within your organization", it makes "team X defines only `x/` types" a mechanical check,
+  and it lets two teams each have a `wallet`.
+- **Naming rule:** one prefix level, lowercase letters, digits and underscores, at least 3 characters per part. Observed
+  on SpiceDB v1.57.1 on 2026-11-17: `bl/wallet` and `ab` are rejected (too short), `Billing/wallet` (uppercase) and
+  `billing-wallet` (hyphen) are rejected, and `billing/sub/wallet` is accepted, but nesting is not used.
+- **The API names an object in the query string, never in the path.** A path segment cannot carry `commerce/wallet`. The
+  five access routes and the children route moved to the form `/access/audit` already used: `/access/grants`,
+  `/access/grantable-groups`, `/access/effective` and `/children`, each with `?type=&id=`. A raw or `%2F`-encoded slash both
+  resolve (unit-tested). Encoding the slash into the path was rejected: it depends on routing, the generated client and
+  every proxy treating `%2F` the same way. `ResourceLocator.RouteTyped` was removed so a route-typed object cannot come
+  back by accident.
+- **The client has one catch-all page route, `/resources/*`.** `parseResourcePath` matches the path against the known types,
+  so `commerce/wallet/uk-ops/access` and `customer/acme` both parse, and an object whose id is `access` is no longer
+  mistaken for the Access tab. Links keep their shape (`/resources/{type}/{id}`).
+- **Code names types through the schema constants.** Two API files had literal type strings (`ObjectViews`, the not-found
+  messages); they now use `*Schema.Type`, and the unit-test schema parser accepts a prefixed definition name (a `\w+`
+  pattern would have skipped them).
+
+**Not changed, and needed for a central Access Management service**
+- **The set of known types is still hard-coded** (`ResourceLocator.NamedTypes`). A central service would need every team's
+  release to change and redeploy it; it should load the types from the deployed schema at start-up instead.
+- **The grantable roles per type are a hand-written table too** (`GrantableRelations`). It feeds the Access tab's Role
+  list (through `grantableRelations` in the grants response) and the server's `unknown_relation` check on grant, and a
+  unit test keeps it equal to the schema's relations minus the structural ones (`parent`, `owner`, `member`). A central
+  service cannot hand-maintain every team's roles. Two ways out: derive the list from the deployed schema at start-up
+  using that same rule, which needs every team to agree which relation names are structural; or have each team declare
+  its grantable roles as metadata beside its schema file, which the schema pipeline checks.
+  - **Proposed answer (2026-11-17, not implemented): classify by subject type, not by name.** A relation is a grantable
+    role when every subject it allows is a "people" type (`user`, `group#member`), and structural when it points at an
+    object. In today's schema this gives exactly the hand-written table on every grantable type (`member` on `group` is
+    person-shaped but groups are not grant targets; membership has its own command). It cannot drift: a team cannot add a
+    structural relation that turns up as a role, because it points at an object. Teams agree only on the people types,
+    which the platform already owns; a new kind of person (say `serviceaccount`) is added to that list once. The service
+    can read subject types at start-up: `SchemaService/ReflectSchema` is in the SpiceDB v1.57.1 binary and in Authzed.Net
+    1.6.0 (found in both binaries, not yet called); parsing `schema read` text is the fallback.
+  - **A naming convention on top, enforced by the schema pipeline:** relations that point at objects use reserved names
+    (`parent` for the hierarchy, `owner` for ownership); roles never use those names; every team resource type has a
+    `parent`, so inheritance works the same way everywhere.
+  - **Rejected, checked against SpiceDB v1.57.1 on 2026-11-17:** marking structural relations with an underscore (`_parent`
+    and `parent_` are refused by the engine); a word prefix (`struct_parent` is accepted, but it lands in every tuple and
+    arrow, and renaming means rewriting tuples); a doc-comment marker (comments survive a write and read-back, but nothing
+    enforces them and it is not known whether `ReflectSchema` returns them); a reserved-name list alone (a convention
+    nothing enforces).
+  - **To adopt it here:** compute `GrantableRelations.For(type)` from the schema, and change the unit test to assert that
+    the subject-type rule gives today's table.
+- **Ids are still checked against this PoC's id format** (`EntityId.Validate`). Other teams' ids need SpiceDB's own id rules.
+- **Cross-team references can cross customer boundaries.** In the 2026-11-17 namespace experiment, a `shipping/parcel`
+  under customer C2, paid from a `billing/wallet` under C1, was viewable by C1's administrator through `payer->spend`.
+  SpiceDB does not prevent this; each team's schema decides it. It needs a design rule, or a check in the schema pipeline,
+  before teams reference each other's types.
+
+**How it was done and checked**
+- The mechanical rename (about 370 occurrences in 40 files) ran through a throwaway script that applied each pattern only
+  if it matched an expected count taken from an independent `grep -o`, and wrote nothing otherwise; the full diff was then
+  reviewed. Routes, the locator, the client routing and the constants were edited by hand. A follow-up search found what
+  the patterns missed: wildcard filters (`domain:*`), three not-found messages and `verify.sh`'s schema read-back.
+- The access matrix in `authz/validation.yaml` and the guard in `verify.sh` name the prefixed cells; all 88 assertions
+  still pass with the same expected values.
+- **Visible side effect: inherited grants are listed in a different order.** The API sorts them by source type name
+  (`AccessQueryService.GrantsAsync`), so `commerce/domain` now comes before `customer`, and the Access tab shows a
+  domain's administrators above the customer's. The order was always alphabetical by type, never by hierarchy; sorting
+  nearest-ancestor-first would be the better order and is left as a separate change.
+
+**A third harness race, found by the full gate during this change (unrelated to it)**
+- One `verify.sh` run failed a test because its engine could not bind its port (`bind: address already in use`).
+  `NativeSpiceDbHost.FreePort` finds a free port and releases it before the engine binds it, so in a parallel run another
+  process can take it in between (outbound connections draw from the same port range). Readiness was a bare TCP connect,
+  which would also succeed against whatever process had taken the port.
+- **Fix:** readiness now also requires the engine's own `grpc server started serving` log line (observed on v1.57.1; it
+  is written only after the bind), and a randomly chosen port that is taken is retried on a new one, up to three
+  attempts. A port the caller fixed (the restart tests) is never moved.
+- **Proven by two tests that take the port on purpose** (`NativeSpiceDbHostTests`). Mutation-checked: with one attempt
+  the retry test fails; with connect-only readiness both fail, the fixed-port test because the harness reported the
+  thief's listener as a ready engine.

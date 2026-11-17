@@ -74,11 +74,11 @@ export function renameObject(api: Api, v: { type: ObjectType; id: string; name: 
   switch (v.type) {
     case 'customer':
       return unwrap(api.PATCH('/api/customers/{id}', request));
-    case 'domain':
+    case 'commerce/domain':
       return unwrap(api.PATCH('/api/domains/{id}', request));
-    case 'wallet':
+    case 'commerce/wallet':
       return unwrap(api.PATCH('/api/wallets/{id}', request));
-    case 'subscription':
+    case 'commerce/subscription':
       throw new Error('A subscription cannot be renamed.');
   }
 }
@@ -89,11 +89,11 @@ export async function deleteObject(api: Api, v: { type: ObjectType; id: string }
     switch (v.type) {
       case 'customer':
         return api.DELETE('/api/customers/{id}', path);
-      case 'domain':
+      case 'commerce/domain':
         return api.DELETE('/api/domains/{id}', path);
-      case 'wallet':
+      case 'commerce/wallet':
         return api.DELETE('/api/wallets/{id}', path);
-      case 'subscription':
+      case 'commerce/subscription':
         return api.DELETE('/api/subscriptions/{id}', path);
     }
   };
@@ -121,12 +121,12 @@ export interface SubjectChoice {
 }
 
 export const grantAccess = (api: Api, v: { type: GrantTargetType; id: string; relation: string; subject: SubjectChoice }) =>
-  unwrap(api.PUT('/api/access/{type}/{id}/grants', { params: { path: { type: v.type, id: v.id } }, body: { relation: v.relation, subject: v.subject } }));
+  unwrap(api.PUT('/api/access/grants', { params: { query: { type: v.type, id: v.id } }, body: { relation: v.relation, subject: v.subject } }));
 
 export const revokeAccess = (api: Api, v: { type: GrantTargetType; id: string; relation: string; subject: SubjectChoice }) =>
   unwrap(
-    api.DELETE('/api/access/{type}/{id}/grants', {
-      params: { path: { type: v.type, id: v.id }, query: { relation: v.relation, subjectType: v.subject.type, subjectId: v.subject.id } },
+    api.DELETE('/api/access/grants', {
+      params: { query: { type: v.type, id: v.id, relation: v.relation, subjectType: v.subject.type, subjectId: v.subject.id } },
     }),
   );
 

@@ -39,7 +39,7 @@ public sealed class SchemaStoreTests : IAsyncLifetime
         var text = await _schema.ReadAsync(Ct);
 
         Assert.NotNull(text);
-        foreach (var type in new[] { "user", "platform", "group", "customer", "domain", "wallet", "subscription" })
+        foreach (var type in new[] { "user", "platform", "group", "customer", "commerce/domain", "commerce/wallet", "commerce/subscription" })
             Assert.Contains($"definition {type}", text);
     }
 

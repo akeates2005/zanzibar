@@ -23,7 +23,7 @@ public sealed class GrantRulesTests
         // Fitness function: the table must track authz/schema.zed, so a new role cannot be added in one place only.
         var schema = SchemaModel.Load();
         var structural = new[] { "parent", "owner", "member" };
-        foreach (var type in new[] { "platform", "customer", "domain", "wallet", "subscription" })
+        foreach (var type in new[] { "platform", "customer", "commerce/domain", "commerce/wallet", "commerce/subscription" })
         {
             var expected = schema.Types[type].Relations.Where(r => !structural.Contains(r)).Order();
             Assert.Equal(expected, GrantableRelations.For(type).Order());
@@ -35,18 +35,18 @@ public sealed class GrantRulesTests
 
     [Theory]
     [InlineData("customer", "viewer")]
-    [InlineData("wallet", "spender")]
-    [InlineData("subscription", "operator")]
+    [InlineData("commerce/wallet", "spender")]
+    [InlineData("commerce/subscription", "operator")]
     [InlineData("platform", "support")]
     public void A_grantable_relation_passes(string type, string relation) => GrantRules.RequireGrantableRelation(type, relation);
 
     [Theory]
     [InlineData("customer", "parent")]      // structural: only the projector writes it
-    [InlineData("wallet", "owner")]
+    [InlineData("commerce/wallet", "owner")]
     [InlineData("customer", "operator")]    // exists on subscription, not customer
-    [InlineData("domain", "spender")]
-    [InlineData("wallet", "no_such_relation")]
-    [InlineData("wallet", "view")]          // a permission, not a relation
+    [InlineData("commerce/domain", "spender")]
+    [InlineData("commerce/wallet", "no_such_relation")]
+    [InlineData("commerce/wallet", "view")]          // a permission, not a relation
     [InlineData("group", "member")]
     [InlineData("nonsense", "viewer")]
     public void Anything_else_is_refused_with_a_stable_code(string type, string relation)

@@ -1,6 +1,7 @@
 using Poc.Api.Contracts;
 using Poc.Api.Security;
 using Poc.Application.Authorization;
+using Poc.Application.Authorization.Schema;
 using Poc.Application.Common;
 using Poc.Application.Queries;
 using Poc.Domain.Commerce;
@@ -12,25 +13,25 @@ public sealed class ObjectViews(ObjectReadService read, CurrentUser user)
 {
     public async Task<CustomerDto> ToDtoAsync(Customer c, CancellationToken ct)
     {
-        var (permissions, ancestors) = await ContextAsync(new ResourceRef("customer", c.Id), ct).ConfigureAwait(false);
+        var (permissions, ancestors) = await ContextAsync(new ResourceRef(CustomerSchema.Type, c.Id), ct).ConfigureAwait(false);
         return new CustomerDto(c.Id, c.Name, c.CreatedAt, c.CreatedBy, c.RowVersion, permissions, ancestors);
     }
 
     public async Task<DomainDto> ToDtoAsync(CustomerDomain d, CancellationToken ct)
     {
-        var (permissions, ancestors) = await ContextAsync(new ResourceRef("domain", d.Id), ct).ConfigureAwait(false);
+        var (permissions, ancestors) = await ContextAsync(new ResourceRef(DomainSchema.Type, d.Id), ct).ConfigureAwait(false);
         return new DomainDto(d.Id, d.CustomerId, d.Name, d.CreatedAt, d.CreatedBy, d.RowVersion, permissions, ancestors);
     }
 
     public async Task<WalletDto> ToDtoAsync(Wallet w, CancellationToken ct)
     {
-        var (permissions, ancestors) = await ContextAsync(new ResourceRef("wallet", w.Id), ct).ConfigureAwait(false);
+        var (permissions, ancestors) = await ContextAsync(new ResourceRef(WalletSchema.Type, w.Id), ct).ConfigureAwait(false);
         return new WalletDto(w.Id, w.DomainId, w.Name, w.Balance, w.CreatedAt, w.CreatedBy, w.RowVersion, permissions, ancestors);
     }
 
     public async Task<SubscriptionDto> ToDtoAsync(Subscription s, CancellationToken ct)
     {
-        var (permissions, ancestors) = await ContextAsync(new ResourceRef("subscription", s.Id), ct).ConfigureAwait(false);
+        var (permissions, ancestors) = await ContextAsync(new ResourceRef(SubscriptionSchema.Type, s.Id), ct).ConfigureAwait(false);
         return new SubscriptionDto(s.Id, s.WalletId, s.ProductName, s.Quantity, s.Status, s.CreatedAt, s.CreatedBy, s.RowVersion, permissions, ancestors);
     }
 

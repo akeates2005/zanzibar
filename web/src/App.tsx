@@ -15,8 +15,8 @@ export function App() {
       <Route element={<Shell />}>
         <Route index element={<Navigate to="/resources" replace />} />
         <Route path="/resources" element={<ResourceBrowser />} />
-        <Route path="/resources/:type/:id" element={<ResourceDetail />} />
-        <Route path="/resources/:type/:id/access" element={<ResourceDetail />} />
+        {/* One catch-all: an object type may contain a slash (`commerce/wallet`), so it cannot be a route segment. */}
+        <Route path="/resources/*" element={<ResourceDetail />} />
         <Route path="/customers/:id/groups" element={<GroupsPage platform={false} />} />
         <Route path="/platform/groups" element={<GroupsPage platform />} />
         <Route path="/explorer" element={<ExplorerPage />} />

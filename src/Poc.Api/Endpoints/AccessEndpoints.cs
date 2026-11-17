@@ -11,35 +11,38 @@ namespace Poc.Api.Endpoints;
 /// <summary>Grants, effective access, the permission explorer and the grant audit.</summary>
 public static class AccessEndpoints
 {
-    private static readonly ResourceLocator Target = ResourceLocator.RouteTyped("type");
+    // The object is named in the query string, never in the path: a type such as `commerce/wallet` contains a slash,
+    // which a path segment cannot carry (DECISIONS.md, "Team-prefixed object types"). The filter resolves and checks it
+    // before the handler runs, so the handlers' `type!`/`id!` are never null.
+    private static readonly ResourceLocator Target = ResourceLocator.QueryTyped("type", "id");
 
     public static void Map(RouteGroupBuilder api)
     {
-        api.MapGet("/access/{type}/{id}/grants", async (string type, string id, AccessQueryService access, CancellationToken ct) =>
-            Results.Ok(await access.GrantsAsync(new ResourceRef(type, id), ct)))
+        api.MapGet("/access/grants", async (string? type, string? id, AccessQueryService access, CancellationToken ct) =>
+            Results.Ok(await access.GrantsAsync(new ResourceRef(type!, id!), ct)))
             .WithName("GetGrants").WithTags("Access")
             .RequiresOn(PlatformSchema.Permissions.ManageAccess, Target).Produces<GrantsView>();
 
-        api.MapPut("/access/{type}/{id}/grants", async (string type, string id, GrantRequest body, AccessService access, CurrentUser user, CancellationToken ct) =>
+        api.MapPut("/access/grants", async (string? type, string? id, GrantRequest body, AccessService access, CurrentUser user, CancellationToken ct) =>
         {
-            var result = await access.GrantAsync(user.Actor, ToTarget(type, id, body.Relation, body.Subject), ct);
+            var result = await access.GrantAsync(user.Actor, ToTarget(type!, id!, body.Relation, body.Subject), ct);
             return Results.Ok(new GrantResponse(result.AuditId));
         }).WithName("Grant").WithTags("Access").RequiresOn(PlatformSchema.Permissions.ManageAccess, Target).Produces<GrantResponse>();
 
         // Revoke names its grant in the query string so no client or proxy has to send a body on DELETE.
-        api.MapDelete("/access/{type}/{id}/grants", async (string type, string id, string? relation, string? subjectType, string? subjectId, AccessService access, CurrentUser user, CancellationToken ct) =>
+        api.MapDelete("/access/grants", async (string? type, string? id, string? relation, string? subjectType, string? subjectId, AccessService access, CurrentUser user, CancellationToken ct) =>
         {
-            var result = await access.RevokeAsync(user.Actor, ToTarget(type, id, relation, new SubjectRequest(subjectType, subjectId)), ct);
+            var result = await access.RevokeAsync(user.Actor, ToTarget(type!, id!, relation, new SubjectRequest(subjectType, subjectId)), ct);
             return Results.Ok(new GrantResponse(result.AuditId));
         }).WithName("Revoke").WithTags("Access").RequiresOn(PlatformSchema.Permissions.ManageAccess, Target).Produces<GrantResponse>();
 
-        api.MapGet("/access/{type}/{id}/grantable-groups", async (string type, string id, AccessQueryService access, CurrentUser user, CancellationToken ct) =>
-            Results.Ok(await access.GrantableGroupsAsync(user.Actor, new ResourceRef(type, id), ct)))
+        api.MapGet("/access/grantable-groups", async (string? type, string? id, AccessQueryService access, CurrentUser user, CancellationToken ct) =>
+            Results.Ok(await access.GrantableGroupsAsync(user.Actor, new ResourceRef(type!, id!), ct)))
             .WithName("GetGrantableGroups").WithTags("Access")
             .RequiresOn(PlatformSchema.Permissions.ManageAccess, Target).Produces<List<GroupSummary>>();
 
-        api.MapGet("/access/{type}/{id}/effective", async (string type, string id, string? permission, AccessQueryService access, CancellationToken ct) =>
-            Results.Ok(await access.EffectiveAsync(new ResourceRef(type, id), Results2.Require(permission, "permission"), ct)))
+        api.MapGet("/access/effective", async (string? type, string? id, string? permission, AccessQueryService access, CancellationToken ct) =>
+            Results.Ok(await access.EffectiveAsync(new ResourceRef(type!, id!), Results2.Require(permission, "permission"), ct)))
             .WithName("GetEffectiveAccess").WithTags("Access")
             .RequiresOn(PlatformSchema.Permissions.ManageAccess, Target).Produces<List<SubjectView>>();
 
@@ -62,7 +65,7 @@ public static class AccessEndpoints
         api.MapGet("/access/audit", async (string? type, string? id, AccessQueryService access, CancellationToken ct) =>
             Results.Ok(await access.AuditAsync(new ResourceRef(type!, id!), ct)))
             .WithName("GetGrantAudit").WithTags("Access")
-            .RequiresOn(PlatformSchema.Permissions.ManageAccess, ResourceLocator.QueryTyped("type", "id")).Produces<List<GrantAuditView>>();
+            .RequiresOn(PlatformSchema.Permissions.ManageAccess, Target).Produces<List<GrantAuditView>>();
     }
 
     /// <summary>A group grantee is named by type alone in the API; its members are the subject.</summary>

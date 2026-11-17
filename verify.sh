@@ -28,8 +28,9 @@ zed validate --fail-on-warn authz/schema.zed || fail "authz/schema.zed"
 # (true or false; zed checks the value against the schema). Presence is checked by name, not by count.
 missing=0
 for u in priya sam alice bob heidi carol dave erin grace frank; do
-  for cell in customer:acme#view domain:acme-uk#admin wallet:uk-ops#spend subscription:m365-e3#change_quantity \
-              subscription:m365-e3#cancel wallet:ie-ops#view customer:globex#view; do
+  for cell in customer:acme#view commerce/domain:acme-uk#admin commerce/wallet:uk-ops#spend \
+              commerce/subscription:m365-e3#change_quantity commerce/subscription:m365-e3#cancel commerce/wallet:ie-ops#view \
+              customer:globex#view; do
     grep -qxE "\s+- \"${cell}@user:${u}\"" authz/validation.yaml || { red "matrix cell not asserted: ${cell}@user:${u}"; missing=$((missing+1)); }
   done
 done
@@ -45,7 +46,7 @@ smoke() { SPICEDB_GRPC_PORT="$SMOKE_PORT" SPICEDB_STATE_DIR="$SMOKE_STATE" scrip
 trap smoke EXIT
 Z=(zed --endpoint "localhost:$SMOKE_PORT" --token "$SMOKE_KEY" --insecure)
 "${Z[@]}" schema write authz/schema.zed >/dev/null || fail "schema.zed rejected by live SpiceDB"
-"${Z[@]}" schema read | grep -q "definition subscription" || fail "schema read-back missing 'subscription'"
+"${Z[@]}" schema read | grep -q "definition commerce/subscription" || fail "schema read-back missing 'commerce/subscription'"
 pass "live SpiceDB accepts schema.zed and returns it"
 
 stage "Compose file and Dockerfiles: static checks"

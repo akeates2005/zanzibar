@@ -44,6 +44,9 @@ Still stop and ask (with `AskUserQuestion` and a recommendation) for:
 
 - Edit source with Edit/Write only. No `sed -i`, `perl -pi` or heredoc writes into `src/`, `tests/`, `web/src`,
   `web/e2e` or `authz/`. Confirm an edit applied before reading a test result.
+  Exception (agreed 2026-11-17): a purely mechanical rename across many files may use a throwaway script that applies
+  each pattern only if it matches an expected count taken from an independent `grep -o`, and writes nothing otherwise.
+  Review the full diff, then search for what the patterns missed (a wildcard `type:*` was missed the first time).
 - Never `pkill -f`/`pgrep -f` with an unanchored pattern; it matches your own shell. Kill by PID. The processes are named
   `Poc.Api` and `Poc.DevIssuer`, not `dotnet`.
 - `rm -rf` only on `"${VAR:?}"` or a literal project path.

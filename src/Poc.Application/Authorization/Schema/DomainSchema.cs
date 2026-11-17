@@ -2,7 +2,7 @@ namespace Poc.Application.Authorization.Schema;
 
 public static class DomainSchema
 {
-    public const string Type = "domain";
+    public const string Type = "commerce/domain";
 
     public static class Relations
     {

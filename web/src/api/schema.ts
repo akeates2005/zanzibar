@@ -36,7 +36,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/{parentType}/{id}/children": {
+    "/api/children": {
         parameters: {
             query?: never;
             header?: never;
@@ -260,7 +260,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/access/{type}/{id}/grants": {
+    "/api/access/grants": {
         parameters: {
             query?: never;
             header?: never;
@@ -276,7 +276,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/access/{type}/{id}/grantable-groups": {
+    "/api/access/grantable-groups": {
         parameters: {
             query?: never;
             header?: never;
@@ -292,7 +292,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/access/{type}/{id}/effective": {
+    "/api/access/effective": {
         parameters: {
             query?: never;
             header?: never;
@@ -939,12 +939,12 @@ export interface operations {
     };
     GetChildren: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                parentType: string;
-                id: string;
+            query?: {
+                type?: string;
+                id?: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -2836,12 +2836,12 @@ export interface operations {
     };
     GetGrants: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                type: string;
-                id: string;
+            query?: {
+                type?: string;
+                id?: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -2922,12 +2922,12 @@ export interface operations {
     };
     Grant: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                type: string;
-                id: string;
+            query?: {
+                type?: string;
+                id?: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody: {
@@ -3013,15 +3013,14 @@ export interface operations {
     Revoke: {
         parameters: {
             query?: {
+                type?: string;
+                id?: string;
                 relation?: string;
                 subjectType?: string;
                 subjectId?: string;
             };
             header?: never;
-            path: {
-                type: string;
-                id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -3102,12 +3101,12 @@ export interface operations {
     };
     GetGrantableGroups: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                type: string;
-                id: string;
+            query?: {
+                type?: string;
+                id?: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -3189,13 +3188,12 @@ export interface operations {
     GetEffectiveAccess: {
         parameters: {
             query?: {
+                type?: string;
+                id?: string;
                 permission?: string;
             };
             header?: never;
-            path: {
-                type: string;
-                id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;

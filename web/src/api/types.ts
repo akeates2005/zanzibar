@@ -25,23 +25,23 @@ export type OutboxDto = Schemas['OutboxDto'];
 export type ReconciliationDto = Schemas['ReconciliationDto'];
 
 /** The four business objects that have a detail screen, named as the API names them. */
-export type ObjectType = 'customer' | 'domain' | 'wallet' | 'subscription';
+export type ObjectType = 'customer' | 'commerce/domain' | 'commerce/wallet' | 'commerce/subscription';
 
 export type ObjectDto = CustomerDto | DomainDto | WalletDto | SubscriptionDto;
 
 /** The DTO each object type is returned as. */
 interface ObjectByTypeMap {
   customer: CustomerDto;
-  domain: DomainDto;
-  wallet: WalletDto;
-  subscription: SubscriptionDto;
+  'commerce/domain': DomainDto;
+  'commerce/wallet': WalletDto;
+  'commerce/subscription': SubscriptionDto;
 }
 export type ObjectByType = ObjectByTypeMap;
 
 /** Object types that can take grants: the business objects plus the platform. */
 export type GrantTargetType = ObjectType | 'platform';
 
-export const OBJECT_TYPES: readonly ObjectType[] = ['customer', 'domain', 'wallet', 'subscription'];
+export const OBJECT_TYPES: readonly ObjectType[] = ['customer', 'commerce/domain', 'commerce/wallet', 'commerce/subscription'];
 
 export function isObjectType(value: string | undefined): value is ObjectType {
   return value !== undefined && (OBJECT_TYPES as readonly string[]).includes(value);

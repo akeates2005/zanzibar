@@ -18,9 +18,9 @@ public sealed class EndpointDeclarationTests : ApiTestBase
     {
         ["platform"] = "main",
         ["customer"] = "acme",
-        ["domain"] = "acme-uk",
-        ["wallet"] = "uk-ops",
-        ["subscription"] = "m365-e3",
+        ["commerce/domain"] = "acme-uk",
+        ["commerce/wallet"] = "uk-ops",
+        ["commerce/subscription"] = "m365-e3",
         ["group"] = "uk-it",
     };
 
@@ -129,7 +129,7 @@ public sealed class EndpointDeclarationTests : ApiTestBase
         var sam = await AsAsync("sam");
         var failures = new List<string>();
         var attempted = 0;
-        var viewable = new[] { "platform", "customer", "domain", "wallet", "subscription" };
+        var viewable = new[] { "platform", "customer", "commerce/domain", "commerce/wallet", "commerce/subscription" };
 
         foreach (var route in ApiRoutes(Routes()).Where(r => r.Requirement is AccessRequirement.OnResource { Permission: not "view" }))
         {

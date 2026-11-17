@@ -15,11 +15,11 @@ export function fetchObject<T extends ObjectType>(api: Api, type: T, id: string)
     switch (type) {
       case 'customer':
         return unwrap(api.GET('/api/customers/{id}', path));
-      case 'domain':
+      case 'commerce/domain':
         return unwrap(api.GET('/api/domains/{id}', path));
-      case 'wallet':
+      case 'commerce/wallet':
         return unwrap(api.GET('/api/wallets/{id}', path));
-      case 'subscription':
+      case 'commerce/subscription':
         return unwrap(api.GET('/api/subscriptions/{id}', path));
     }
   };
@@ -45,7 +45,7 @@ export function useChildren(parentType: GrantTargetType, id: string, enabled = t
   const { user, api } = useSession();
   return useQuery({
     queryKey: keys.children(user.id, parentType, id),
-    queryFn: () => unwrap(api.GET('/api/{parentType}/{id}/children', { params: { path: { parentType, id } } })),
+    queryFn: () => unwrap(api.GET('/api/children', { params: { query: { type: parentType, id } } })),
     enabled,
   });
 }
@@ -54,7 +54,7 @@ export function useGrants(type: GrantTargetType, id: string, enabled = true) {
   const { user, api } = useSession();
   return useQuery({
     queryKey: keys.grants(user.id, type, id),
-    queryFn: () => unwrap(api.GET('/api/access/{type}/{id}/grants', { params: { path: { type, id } } })),
+    queryFn: () => unwrap(api.GET('/api/access/grants', { params: { query: { type, id } } })),
     enabled,
     retry: false,
   });
@@ -64,7 +64,7 @@ export function useGrantableGroups(type: GrantTargetType, id: string, enabled = 
   const { user, api } = useSession();
   return useQuery({
     queryKey: keys.grantableGroups(user.id, type, id),
-    queryFn: () => unwrap(api.GET('/api/access/{type}/{id}/grantable-groups', { params: { path: { type, id } } })),
+    queryFn: () => unwrap(api.GET('/api/access/grantable-groups', { params: { query: { type, id } } })),
     enabled,
   });
 }
@@ -74,7 +74,7 @@ export function useEffectiveAccess(type: GrantTargetType, id: string, permission
   return useQuery({
     queryKey: keys.effective(user.id, type, id, permission ?? ''),
     queryFn: () =>
-      unwrap(api.GET('/api/access/{type}/{id}/effective', { params: { path: { type, id }, query: { permission: permission ?? undefined } } })),
+      unwrap(api.GET('/api/access/effective', { params: { query: { type, id, permission: permission ?? undefined } } })),
     enabled: permission !== null,
   });
 }

@@ -116,7 +116,7 @@ a wallet with a tick or a cross.
 **2. Inheritance and isolation (2 min).** Switch to **Alice** (header selector; it is instant and clears all cached data). She
 sees Acme and everything under it, and nothing of Globex. Open **Acme UK → Access** tab: *Inherited access* lists the
 administrators of the customer and the platform, each labelled with where it comes from. Now switch to **Grace** and paste
-`/resources/wallet/uk-ops` into the address bar: *"This wallet does not exist, or you do not have access to it."* Not a 403: the
+`/resources/commerce/wallet/uk-ops` into the address bar: *"This wallet does not exist, or you do not have access to it."* Not a 403: the
 system will not even confirm the wallet exists.
 
 **3. Viewer does not inherit; disabled, not hidden (1 min).** Switch to **Erin**. She sees *Acme Ltd* and nothing beneath it.

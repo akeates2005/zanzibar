@@ -20,8 +20,8 @@ public sealed class ResourceLocatorTests
     [Fact]
     public void A_fixed_type_with_an_id_from_the_route_resolves()
     {
-        var resolved = ResourceLocator.Route("wallet").Resolve(Request(new() { ["id"] = "uk-ops" }));
-        Assert.Equal(new ResourceRef("wallet", "uk-ops"), resolved);
+        var resolved = ResourceLocator.Route("commerce/wallet").Resolve(Request(new() { ["id"] = "uk-ops" }));
+        Assert.Equal(new ResourceRef("commerce/wallet", "uk-ops"), resolved);
     }
 
     [Fact]
@@ -31,14 +31,24 @@ public sealed class ResourceLocatorTests
     }
 
     [Fact]
-    public void A_type_named_in_the_route_must_be_one_of_the_known_object_types()
+    public void A_type_named_in_the_request_must_be_one_of_the_known_object_types()
     {
-        var locator = ResourceLocator.RouteTyped("type");
-        foreach (var type in new[] { "platform", "customer", "domain", "wallet", "subscription" })
-            Assert.Equal(new ResourceRef(type, "x1"), locator.Resolve(Request(new() { ["type"] = type, ["id"] = "x1" })));
+        var locator = ResourceLocator.QueryTyped("type", "id");
+        foreach (var type in new[] { "platform", "customer", "commerce/domain", "commerce/wallet", "commerce/subscription" })
+            Assert.Equal(new ResourceRef(type, "x1"), locator.Resolve(Request(query: $"?type={Uri.EscapeDataString(type)}&id=x1")));
 
-        foreach (var type in new[] { "group", "user", "nonsense", "", "Customer", "customer ", "customer:acme" })
-            Assert.Null(locator.Resolve(Request(new() { ["type"] = type, ["id"] = "x1" })));
+        // The unprefixed names are no longer types, and a prefix alone is not one either.
+        foreach (var type in new[] { "group", "user", "nonsense", "", "Customer", "customer ", "customer:acme", "wallet", "commerce", "commerce/" })
+            Assert.Null(locator.Resolve(Request(query: $"?type={Uri.EscapeDataString(type)}&id=x1")));
+    }
+
+    [Fact]
+    public void A_slash_in_the_type_resolves_whether_or_not_the_client_encodes_it()
+    {
+        var locator = ResourceLocator.QueryTyped("type", "id");
+        var expected = new ResourceRef("commerce/wallet", "uk-ops");
+        Assert.Equal(expected, locator.Resolve(Request(query: "?type=commerce/wallet&id=uk-ops")));
+        Assert.Equal(expected, locator.Resolve(Request(query: "?type=commerce%2Fwallet&id=uk-ops")));
     }
 
     [Theory]
@@ -68,7 +78,7 @@ public sealed class ResourceLocatorTests
     public void A_query_locator_reads_the_query_string_and_ignores_route_values()
     {
         var locator = ResourceLocator.QueryTyped("type", "id");
-        Assert.Equal(new ResourceRef("domain", "acme-uk"), locator.Resolve(Request(new() { ["id"] = "ignored" }, "?type=domain&id=acme-uk")));
+        Assert.Equal(new ResourceRef("commerce/domain", "acme-uk"), locator.Resolve(Request(new() { ["id"] = "ignored" }, "?type=commerce/domain&id=acme-uk")));
     }
 
     [Fact]

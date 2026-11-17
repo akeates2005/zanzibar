@@ -30,14 +30,14 @@ public sealed class ReconciliationTests : PocTestBase
     [Fact]
     public async Task A_tuple_deleted_behind_the_applications_back_is_reported_missing()
     {
-        await Host.Get<IRelationshipStore>().DeleteAsync(new RelationshipFilter("wallet", "uk-ops", "parent"), Ct);
+        await Host.Get<IRelationshipStore>().DeleteAsync(new RelationshipFilter("commerce/wallet", "uk-ops", "parent"), Ct);
 
         var report = await RunAsync();
 
         Assert.False(report.InSync);
-        Assert.Equal(["wallet:uk-ops#parent@domain:acme-uk"], Names(report.Missing));
+        Assert.Equal(["commerce/wallet:uk-ops#parent@commerce/domain:acme-uk"], Names(report.Missing));
         Assert.Empty(report.Unexpected);
-        Assert.False(await CanAsync("alice", "view", Res("wallet", "uk-ops"))); // the drift has real consequences: access to the wallet is gone
+        Assert.False(await CanAsync("alice", "view", Res("commerce/wallet", "uk-ops"))); // the drift has real consequences: access to the wallet is gone
     }
 
     [Fact]
@@ -45,13 +45,13 @@ public sealed class ReconciliationTests : PocTestBase
     {
         // A second parent would let another domain's admins reach the wallet: exactly the drift worth catching.
         await Host.Get<IRelationshipStore>().WriteAsync(
-            [RelationshipUpdate.Touch(ValidationYaml.ParseTuple("wallet:ie-ops#parent@domain:globex-main"))], Ct);
+            [RelationshipUpdate.Touch(ValidationYaml.ParseTuple("commerce/wallet:ie-ops#parent@commerce/domain:globex-main"))], Ct);
 
         var report = await RunAsync();
 
-        Assert.Equal(["wallet:ie-ops#parent@domain:globex-main"], Names(report.Unexpected));
+        Assert.Equal(["commerce/wallet:ie-ops#parent@commerce/domain:globex-main"], Names(report.Unexpected));
         Assert.Empty(report.Missing);
-        Assert.True(await CanAsync("grace", "view", Res("wallet", "ie-ops")), "the injected parent really does leak access");
+        Assert.True(await CanAsync("grace", "view", Res("commerce/wallet", "ie-ops")), "the injected parent really does leak access");
     }
 
     [Fact]
@@ -69,19 +69,19 @@ public sealed class ReconciliationTests : PocTestBase
     [Fact]
     public async Task A_tuple_for_an_object_that_no_longer_exists_is_reported_unexpected()
     {
-        await Host.Get<IRelationshipStore>().WriteAsync([RelationshipUpdate.Touch(ValidationYaml.ParseTuple("wallet:ghost#parent@domain:acme-uk"))], Ct);
-        Assert.Equal(["wallet:ghost#parent@domain:acme-uk"], Names((await RunAsync()).Unexpected));
+        await Host.Get<IRelationshipStore>().WriteAsync([RelationshipUpdate.Touch(ValidationYaml.ParseTuple("commerce/wallet:ghost#parent@commerce/domain:acme-uk"))], Ct);
+        Assert.Equal(["commerce/wallet:ghost#parent@commerce/domain:acme-uk"], Names((await RunAsync()).Unexpected));
     }
 
     [Fact]
     public async Task Detection_alone_repairs_nothing()
     {
-        await Host.Get<IRelationshipStore>().DeleteAsync(new RelationshipFilter("wallet", "uk-ops", "parent"), Ct);
+        await Host.Get<IRelationshipStore>().DeleteAsync(new RelationshipFilter("commerce/wallet", "uk-ops", "parent"), Ct);
 
         await RunAsync(repair: false);
         await RunAsync(repair: false);
 
-        Assert.False(await HasTupleAsync("wallet:uk-ops#parent@domain:acme-uk"));
+        Assert.False(await HasTupleAsync("commerce/wallet:uk-ops#parent@commerce/domain:acme-uk"));
         Assert.False((await RunAsync()).InSync);
     }
 
@@ -89,22 +89,22 @@ public sealed class ReconciliationTests : PocTestBase
     public async Task An_explicit_repair_restores_missing_tuples_and_removes_unexpected_ones()
     {
         var store = Host.Get<IRelationshipStore>();
-        await store.DeleteAsync(new RelationshipFilter("wallet", "uk-ops", "parent"), Ct);
-        await store.WriteAsync([RelationshipUpdate.Touch(ValidationYaml.ParseTuple("wallet:ie-ops#parent@domain:globex-main"))], Ct);
+        await store.DeleteAsync(new RelationshipFilter("commerce/wallet", "uk-ops", "parent"), Ct);
+        await store.WriteAsync([RelationshipUpdate.Touch(ValidationYaml.ParseTuple("commerce/wallet:ie-ops#parent@commerce/domain:globex-main"))], Ct);
 
         var repaired = await RunAsync(repair: true);
 
         Assert.True(repaired.InSync);
-        Assert.True(await HasTupleAsync("wallet:uk-ops#parent@domain:acme-uk"));
-        Assert.False(await HasTupleAsync("wallet:ie-ops#parent@domain:globex-main"));
-        Assert.True(await CanAsync("alice", "view", Res("wallet", "uk-ops")));
-        Assert.False(await CanAsync("grace", "view", Res("wallet", "ie-ops")));
+        Assert.True(await HasTupleAsync("commerce/wallet:uk-ops#parent@commerce/domain:acme-uk"));
+        Assert.False(await HasTupleAsync("commerce/wallet:ie-ops#parent@commerce/domain:globex-main"));
+        Assert.True(await CanAsync("alice", "view", Res("commerce/wallet", "uk-ops")));
+        Assert.False(await CanAsync("grace", "view", Res("commerce/wallet", "ie-ops")));
     }
 
     [Fact]
     public async Task Repair_is_idempotent_and_a_second_run_is_a_no_op()
     {
-        await Host.Get<IRelationshipStore>().DeleteAsync(new RelationshipFilter("wallet", "uk-ops", "parent"), Ct);
+        await Host.Get<IRelationshipStore>().DeleteAsync(new RelationshipFilter("commerce/wallet", "uk-ops", "parent"), Ct);
         await RunAsync(repair: true);
         var again = await RunAsync(repair: true);
         Assert.True(again.InSync);
@@ -138,7 +138,7 @@ public sealed class ReconciliationTests : PocTestBase
         Assert.Equal(1, report.SkippedPending);
 
         await QueryAsync(db => db.OutboxMessages.ExecuteDeleteAsync(Ct));
-        Assert.Equal(["wallet:stuck#parent@domain:acme-uk"], Names((await RunAsync()).Missing));
+        Assert.Equal(["commerce/wallet:stuck#parent@commerce/domain:acme-uk"], Names((await RunAsync()).Missing));
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public sealed class ReconciliationTests : PocTestBase
     public async Task The_report_is_deterministic_and_sorted()
     {
         var store = Host.Get<IRelationshipStore>();
-        await store.DeleteAsync(new RelationshipFilter("wallet", Relation: "parent"), Ct);
+        await store.DeleteAsync(new RelationshipFilter("commerce/wallet", Relation: "parent"), Ct);
 
         var names = Names((await RunAsync()).Missing);
 

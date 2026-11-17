@@ -2,7 +2,7 @@ namespace Poc.Application.Authorization.Schema;
 
 public static class SubscriptionSchema
 {
-    public const string Type = "subscription";
+    public const string Type = "commerce/subscription";
 
     public static class Relations
     {

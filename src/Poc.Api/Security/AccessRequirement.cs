@@ -23,8 +23,6 @@ public sealed record ResourceLocator(string? FixedType, string? TypeKey, string?
 
     public static ResourceLocator Route(string type, string idKey = "id") => new(type, null, null, idKey, LocatorSource.Route);
 
-    public static ResourceLocator RouteTyped(string typeKey, string idKey = "id") => new(null, typeKey, null, idKey, LocatorSource.Route);
-
     public static ResourceLocator QueryTyped(string typeKey, string idKey) => new(null, typeKey, null, idKey, LocatorSource.Query);
 
     public static ResourceLocator Platform { get; } = new(PlatformSchema.Type, null, PlatformSchema.MainId, null, LocatorSource.Route);

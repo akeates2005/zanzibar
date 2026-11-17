@@ -40,7 +40,7 @@ public sealed class WorkerTests : PocTestBase
         try
         {
             await AddWalletAsync("by-worker");
-            Assert.True(await WaitAsync(() => HasTupleAsync("wallet:by-worker#parent@domain:acme-uk")), "worker never projected the message");
+            Assert.True(await WaitAsync(() => HasTupleAsync("commerce/wallet:by-worker#parent@commerce/domain:acme-uk")), "worker never projected the message");
         }
         finally
         {
@@ -60,7 +60,7 @@ public sealed class WorkerTests : PocTestBase
             await Task.Delay(400); // several ticks while the engine is down
             Assert.Equal(1, await QueryAsync(db => db.OutboxMessages.CountAsync(m => m.ProcessedAt == null, Ct))); // still waiting; the engine cannot be read while it is down
             Host.Faults.Down = false;
-            Assert.True(await WaitAsync(() => HasTupleAsync("wallet:after-outage#parent@domain:acme-uk")), "worker did not catch up");
+            Assert.True(await WaitAsync(() => HasTupleAsync("commerce/wallet:after-outage#parent@commerce/domain:acme-uk")), "worker did not catch up");
         }
         finally
         {
@@ -78,9 +78,9 @@ public sealed class WorkerTests : PocTestBase
         try
         {
             await Task.Delay(500);
-            Assert.False(await HasTupleAsync("wallet:too-early#parent@domain:acme-uk"));
+            Assert.False(await HasTupleAsync("commerce/wallet:too-early#parent@commerce/domain:acme-uk"));
             Host.Get<RuntimeState>().MarkReady();
-            Assert.True(await WaitAsync(() => HasTupleAsync("wallet:too-early#parent@domain:acme-uk")));
+            Assert.True(await WaitAsync(() => HasTupleAsync("commerce/wallet:too-early#parent@commerce/domain:acme-uk")));
         }
         finally
         {
@@ -99,7 +99,7 @@ public sealed class WorkerTests : PocTestBase
         {
             await Task.Delay(300);
             await AddWalletAsync("good-after-bad");
-            Assert.True(await WaitAsync(() => HasTupleAsync("wallet:good-after-bad#parent@domain:acme-uk")), "one bad message stopped the worker");
+            Assert.True(await WaitAsync(() => HasTupleAsync("commerce/wallet:good-after-bad#parent@commerce/domain:acme-uk")), "one bad message stopped the worker");
         }
         finally
         {
@@ -111,7 +111,7 @@ public sealed class WorkerTests : PocTestBase
     public async Task The_reconciliation_worker_runs_on_its_own_and_reports_but_never_repairs()
     {
         await Host.Get<Poc.Application.Authorization.IRelationshipStore>().DeleteAsync(
-            new Poc.Application.Authorization.RelationshipFilter("wallet", "uk-ops", "parent"), Ct);
+            new Poc.Application.Authorization.RelationshipFilter("commerce/wallet", "uk-ops", "parent"), Ct);
         var worker = Worker<ReconciliationWorker>();
         await worker.StartAsync(Ct);
         try
@@ -119,7 +119,7 @@ public sealed class WorkerTests : PocTestBase
             var runner = Host.Get<ReconciliationRunner>();
             Assert.True(await WaitAsync(() => Task.FromResult(runner.Latest is { InSync: false })), "scheduled reconciliation never reported the drift");
             await Task.Delay(500);
-            Assert.False(await HasTupleAsync("wallet:uk-ops#parent@domain:acme-uk")); // still missing: the job does not repair
+            Assert.False(await HasTupleAsync("commerce/wallet:uk-ops#parent@commerce/domain:acme-uk")); // still missing: the job does not repair
         }
         finally
         {

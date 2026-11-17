@@ -41,7 +41,7 @@ public sealed class OutboxFaultTests : PocTestBase
         var first = await FlushAsync();
 
         Assert.True(first.EngineUnavailable);
-        Assert.Equal(1, await TupleCountAsync("wallet", "lost-reply")); // the engine did get it
+        Assert.Equal(1, await TupleCountAsync("commerce/wallet", "lost-reply")); // the engine did get it
         var message = (await QueryAsync(db => db.OutboxMessages.AsNoTracking().OrderBy(m => m.Sequence).ToListAsync(Ct))).Last();
         Assert.Equal(0, message.Attempts);
         Assert.Null(message.ProcessedAt);
@@ -50,7 +50,7 @@ public sealed class OutboxFaultTests : PocTestBase
         var second = await FlushAsync();
 
         Assert.True(second.FullyApplied);
-        Assert.Equal(1, await TupleCountAsync("wallet", "lost-reply")); // replay did not duplicate it
+        Assert.Equal(1, await TupleCountAsync("commerce/wallet", "lost-reply")); // replay did not duplicate it
         await AssertConvergedAsync();
     }
 
@@ -71,8 +71,8 @@ public sealed class OutboxFaultTests : PocTestBase
 
         await FlushAsync();
 
-        Assert.True(await HasTupleAsync("wallet:lost-move#parent@domain:acme-ie"));
-        Assert.False(await HasTupleAsync("wallet:lost-move#parent@domain:acme-uk"));
+        Assert.True(await HasTupleAsync("commerce/wallet:lost-move#parent@commerce/domain:acme-ie"));
+        Assert.False(await HasTupleAsync("commerce/wallet:lost-move#parent@commerce/domain:acme-uk"));
         await AssertConvergedAsync();
     }
 
@@ -103,8 +103,8 @@ public sealed class OutboxFaultTests : PocTestBase
 
         Assert.True(second.FullyApplied);
         Assert.DoesNotContain(await AllTuplesAsync(), t => t.Resource.Id == "uk-contractors" || t.Subject.Id == "uk-contractors");
-        Assert.False(await CanAsync("heidi", DomainSchemaPermission, Res("domain", "acme-uk")));
-        Assert.True(await CanAsync("bob", DomainSchemaPermission, Res("domain", "acme-uk")));
+        Assert.False(await CanAsync("heidi", DomainSchemaPermission, Res("commerce/domain", "acme-uk")));
+        Assert.True(await CanAsync("bob", DomainSchemaPermission, Res("commerce/domain", "acme-uk")));
         await AssertConvergedAsync();
     }
 
@@ -151,7 +151,7 @@ public sealed class OutboxFaultTests : PocTestBase
 
         for (var i = 0; i < 20; i++)
         {
-            var parents = (await Host.Get<IRelationshipStore>().ReadAsync(new RelationshipFilter("wallet", $"flap-{i}", "parent"), Ct)).Select(r => r.Subject.Id).ToList();
+            var parents = (await Host.Get<IRelationshipStore>().ReadAsync(new RelationshipFilter("commerce/wallet", $"flap-{i}", "parent"), Ct)).Select(r => r.Subject.Id).ToList();
             if (i % 5 == 0) Assert.Empty(parents); // deleted
             else Assert.Equal([i % 2 == 0 ? "acme-ie" : "acme-uk"], parents); // exactly one parent, the right one
         }
@@ -171,7 +171,7 @@ public sealed class OutboxFaultTests : PocTestBase
         await FlushAsync();
         await FlushAsync(); // and again: a further flush must not repeat the grant
 
-        Assert.True(await CanAsync("carol", "change_quantity", Res("subscription", "outage-sub")));
+        Assert.True(await CanAsync("carol", "change_quantity", Res("commerce/subscription", "outage-sub")));
         var grants = (await AuditAsync()).Where(a => a.ResourceId == "outage-sub").ToList();
         var grant = Assert.Single(grants);
         Assert.Equal((Poc.Domain.Access.GrantAction.Grant, Poc.Domain.Access.GrantStatus.Applied, Actor.SystemUserId), (grant.Action, grant.Status, grant.ActorUserId));
@@ -181,15 +181,15 @@ public sealed class OutboxFaultTests : PocTestBase
     [Fact]
     public async Task A_grant_that_fails_leaves_a_failed_audit_row_and_can_simply_be_issued_again()
     {
-        var target = new GrantTarget(Res("domain", "acme-ie"), "viewer", SubjectRef.User("erin"));
+        var target = new GrantTarget(Res("commerce/domain", "acme-ie"), "viewer", SubjectRef.User("erin"));
         Host.Faults.Down = true;
         await Assert.ThrowsAsync<AuthorizationUnavailableException>(() => InScopeAsync(sp => sp.GetRequiredService<AccessService>().GrantAsync(Actor.ForUser("alice"), target, Ct)));
         Host.Faults.Down = false;
-        Assert.False(await CanAsync("erin", "view", Res("domain", "acme-ie")));
+        Assert.False(await CanAsync("erin", "view", Res("commerce/domain", "acme-ie")));
 
         await InScopeAsync(sp => sp.GetRequiredService<AccessService>().GrantAsync(Actor.ForUser("alice"), target, Ct));
 
-        Assert.True(await CanAsync("erin", "view", Res("domain", "acme-ie")));
+        Assert.True(await CanAsync("erin", "view", Res("commerce/domain", "acme-ie")));
         Assert.Equal(["Failed", "Applied"], (await AuditAsync()).Where(a => a.ResourceId == "acme-ie" && a.SubjectId == "erin").Select(a => a.Status.ToString()).ToArray());
     }
 
@@ -199,14 +199,14 @@ public sealed class OutboxFaultTests : PocTestBase
         await AddWalletAsync("drift-w");
         await FlushAsync();
         // The engine silently loses a tuple (as a restart or a bug might): nothing in the outbox knows.
-        await Host.Get<IRelationshipStore>().DeleteAsync(new RelationshipFilter("wallet", "drift-w", "parent"), Ct);
+        await Host.Get<IRelationshipStore>().DeleteAsync(new RelationshipFilter("commerce/wallet", "drift-w", "parent"), Ct);
 
         var found = await Host.Get<ReconciliationRunner>().RunAsync(repair: false, Ct);
-        Assert.Equal(["wallet:drift-w#parent@domain:acme-uk"], found.Missing.Select(m => m.ToString()).ToArray());
+        Assert.Equal(["commerce/wallet:drift-w#parent@commerce/domain:acme-uk"], found.Missing.Select(m => m.ToString()).ToArray());
 
         var repaired = await Host.Get<ReconciliationRunner>().RunAsync(repair: true, Ct);
         Assert.True(repaired.InSync);
-        Assert.True(await CanAsync("alice", "view", Res("wallet", "drift-w")));
+        Assert.True(await CanAsync("alice", "view", Res("commerce/wallet", "drift-w")));
     }
 
     [Fact]

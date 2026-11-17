@@ -24,7 +24,7 @@ public static class ObjectEndpoints
           .Produces<CustomerDto>(StatusCodes.Status201Created).Produces<PendingResponse>(StatusCodes.Status202Accepted);
 
         api.MapGet("/customers/{id}", async (string id, IRepository<Customer> repo, ObjectViews views, CancellationToken ct) =>
-            Results.Ok(await views.ToDtoAsync(await repo.FindAsync(id, ct) ?? throw new NotFoundException($"customer:{id}"), ct)))
+            Results.Ok(await views.ToDtoAsync(await repo.FindAsync(id, ct) ?? throw new NotFoundException($"{CustomerSchema.Type}:{id}"), ct)))
           .WithName("GetCustomer").WithTags("Customers").RequiresOn(CustomerSchema.Permissions.View, ResourceLocator.Route(CustomerSchema.Type))
           .Produces<CustomerDto>();
 
@@ -48,7 +48,7 @@ public static class ObjectEndpoints
 
         // ---- Domains ---------------------------------------------------------------------------------------------
         api.MapGet("/domains/{id}", async (string id, IRepository<CustomerDomain> repo, ObjectViews views, CancellationToken ct) =>
-            Results.Ok(await views.ToDtoAsync(await repo.FindAsync(id, ct) ?? throw new NotFoundException($"domain:{id}"), ct)))
+            Results.Ok(await views.ToDtoAsync(await repo.FindAsync(id, ct) ?? throw new NotFoundException($"{DomainSchema.Type}:{id}"), ct)))
           .WithName("GetDomain").WithTags("Domains").RequiresOn(DomainSchema.Permissions.View, ResourceLocator.Route(DomainSchema.Type))
           .Produces<DomainDto>();
 
@@ -72,7 +72,7 @@ public static class ObjectEndpoints
 
         // ---- Wallets ---------------------------------------------------------------------------------------------
         api.MapGet("/wallets/{id}", async (string id, IRepository<Wallet> repo, ObjectViews views, CancellationToken ct) =>
-            Results.Ok(await views.ToDtoAsync(await repo.FindAsync(id, ct) ?? throw new NotFoundException($"wallet:{id}"), ct)))
+            Results.Ok(await views.ToDtoAsync(await repo.FindAsync(id, ct) ?? throw new NotFoundException($"{WalletSchema.Type}:{id}"), ct)))
           .WithName("GetWallet").WithTags("Wallets").RequiresOn(WalletSchema.Permissions.View, ResourceLocator.Route(WalletSchema.Type))
           .Produces<WalletDto>();
 
@@ -113,7 +113,7 @@ public static class ObjectEndpoints
 
         // ---- Subscriptions ---------------------------------------------------------------------------------------
         api.MapGet("/subscriptions/{id}", async (string id, IRepository<Subscription> repo, ObjectViews views, CancellationToken ct) =>
-            Results.Ok(await views.ToDtoAsync(await repo.FindAsync(id, ct) ?? throw new NotFoundException($"subscription:{id}"), ct)))
+            Results.Ok(await views.ToDtoAsync(await repo.FindAsync(id, ct) ?? throw new NotFoundException($"{SubscriptionSchema.Type}:{id}"), ct)))
           .WithName("GetSubscription").WithTags("Subscriptions").RequiresOn(SubscriptionSchema.Permissions.View, ResourceLocator.Route(SubscriptionSchema.Type))
           .Produces<SubscriptionDto>();
 

@@ -101,7 +101,7 @@ public sealed class BehaviourScenarioTests : ApiTestBase
         await (await carol.PostJsonAsync($"/api/subscriptions/{id}/cancel")).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "cancel");
         await (await carol.GetAsync("/api/subscriptions/azure-plan")).ExpectProblemAsync(HttpStatusCode.NotFound); // sibling stays hidden
 
-        var audit = await (await (await AsAsync("alice")).GetAsync($"/api/access/audit?type=subscription&id={id}")).ExpectAsync(HttpStatusCode.OK);
+        var audit = await (await (await AsAsync("alice")).GetAsync($"/api/access/audit?type=commerce/subscription&id={id}")).ExpectAsync(HttpStatusCode.OK);
         var entry = Assert.Single(audit.EnumerateArray());
         Assert.Equal("Grant", entry.GetProperty("action").GetString());
         Assert.Equal("operator", entry.GetProperty("relation").GetString());
@@ -139,12 +139,12 @@ public sealed class BehaviourScenarioTests : ApiTestBase
     {
         var grace = await AsAsync("grace");
 
-        await (await grace.PutJsonAsync("/api/access/wallet/globex-ops/grants", new { relation = "viewer", subject = new { type = "group", id = "uk-it" } }))
+        await (await grace.PutJsonAsync("/api/access/grants?type=commerce/wallet&id=globex-ops", new { relation = "viewer", subject = new { type = "group", id = "uk-it" } }))
             .ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "group_owner_mismatch");
 
-        var grants = await (await grace.GetAsync("/api/access/wallet/globex-ops/grants")).ExpectAsync(HttpStatusCode.OK);
+        var grants = await (await grace.GetAsync("/api/access/grants?type=commerce/wallet&id=globex-ops")).ExpectAsync(HttpStatusCode.OK);
         Assert.Equal(0, grants.GetProperty("direct").GetArrayLength());
-        var audit = await (await grace.GetAsync("/api/access/audit?type=wallet&id=globex-ops")).ExpectAsync(HttpStatusCode.OK);
+        var audit = await (await grace.GetAsync("/api/access/audit?type=commerce/wallet&id=globex-ops")).ExpectAsync(HttpStatusCode.OK);
         Assert.Equal(0, audit.GetArrayLength());
     }
 
@@ -180,7 +180,7 @@ public sealed class BehaviourScenarioTests : ApiTestBase
         Assert.Equal(HttpStatusCode.OK, await StatusAsync("dave", "/api/subscriptions/m365-e3"));
 
         var alice = await AsAsync("alice");
-        await (await alice.DeleteAsync("/api/access/subscription/m365-e3/grants?relation=operator&subjectType=user&subjectId=dave"))
+        await (await alice.DeleteAsync("/api/access/grants?type=commerce/subscription&id=m365-e3&relation=operator&subjectType=user&subjectId=dave"))
             .ExpectAsync(HttpStatusCode.OK);
 
         await AssertCannotSeeAsync("dave", "/api/subscriptions/m365-e3");
@@ -206,7 +206,7 @@ public sealed class BehaviourScenarioTests : ApiTestBase
 
         Host.Engine.Resume();
         await Host.WaitUntilReadyAsync(TimeSpan.FromSeconds(30));
-        var children = await (await alice.GetAsync("/api/domain/acme-uk/children")).ExpectAsync(HttpStatusCode.OK);
+        var children = await (await alice.GetAsync("/api/children?type=commerce/domain&id=acme-uk")).ExpectAsync(HttpStatusCode.OK);
         Assert.DoesNotContain(children.EnumerateArray(), c => c.GetProperty("name").GetString() == "Created while frozen");
     }
 

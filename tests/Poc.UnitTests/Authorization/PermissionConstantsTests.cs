@@ -70,10 +70,10 @@ public sealed class PermissionConstantsTests
         // Proves the comparison is able to fail: a schema with an extra permission differs from the constants.
         var drifted = SchemaModel.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "authz", "schema.zed"))
             .Replace("permission cancel = admin", "permission cancel = admin\n    permission refund = admin", StringComparison.Ordinal));
-        var subscription = SchemaClasses.Single(c => TypeNameOf(c) == "subscription");
+        var subscription = SchemaClasses.Single(c => TypeNameOf(c) == "commerce/subscription");
 
-        Assert.NotEqual(drifted.Types["subscription"].Permissions, ConstantsOf(subscription, "Permissions"));
-        Assert.Contains("refund", drifted.Types["subscription"].Permissions);
+        Assert.NotEqual(drifted.Types["commerce/subscription"].Permissions, ConstantsOf(subscription, "Permissions"));
+        Assert.Contains("refund", drifted.Types["commerce/subscription"].Permissions);
     }
 
     [Theory]
@@ -89,8 +89,8 @@ public sealed class PermissionConstantsTests
     {
         Assert.Empty(SchemaCatalog.PermissionsOf("nonsense"));
         Assert.False(SchemaCatalog.IsKnownType("nonsense"));
-        Assert.True(SchemaCatalog.HasPermission("wallet", "top_up"));
-        Assert.False(SchemaCatalog.HasPermission("wallet", "cancel")); // a subscription permission
+        Assert.True(SchemaCatalog.HasPermission("commerce/wallet", "top_up"));
+        Assert.False(SchemaCatalog.HasPermission("commerce/wallet", "cancel")); // a subscription permission
         Assert.False(SchemaCatalog.HasPermission("nonsense", "view"));
     }
 

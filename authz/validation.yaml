@@ -14,121 +14,121 @@ relationships: |-
   group:uk-contractors#owner@customer:acme
   group:finance-ap#owner@customer:acme
 
-  domain:acme-uk#parent@customer:acme
-  domain:acme-ie#parent@customer:acme
-  domain:globex-main#parent@customer:globex
-  wallet:uk-ops#parent@domain:acme-uk
-  wallet:uk-rnd#parent@domain:acme-uk
-  wallet:ie-ops#parent@domain:acme-ie
-  wallet:globex-ops#parent@domain:globex-main
-  subscription:m365-e3#parent@wallet:uk-ops
-  subscription:azure-plan#parent@wallet:uk-ops
-  subscription:github#parent@wallet:uk-rnd
-  subscription:m365-bp#parent@wallet:ie-ops
-  subscription:dynamics#parent@wallet:globex-ops
+  commerce/domain:acme-uk#parent@customer:acme
+  commerce/domain:acme-ie#parent@customer:acme
+  commerce/domain:globex-main#parent@customer:globex
+  commerce/wallet:uk-ops#parent@commerce/domain:acme-uk
+  commerce/wallet:uk-rnd#parent@commerce/domain:acme-uk
+  commerce/wallet:ie-ops#parent@commerce/domain:acme-ie
+  commerce/wallet:globex-ops#parent@commerce/domain:globex-main
+  commerce/subscription:m365-e3#parent@commerce/wallet:uk-ops
+  commerce/subscription:azure-plan#parent@commerce/wallet:uk-ops
+  commerce/subscription:github#parent@commerce/wallet:uk-rnd
+  commerce/subscription:m365-bp#parent@commerce/wallet:ie-ops
+  commerce/subscription:dynamics#parent@commerce/wallet:globex-ops
 
   customer:acme#administrator@user:alice
   group:uk-it#member@user:bob
-  domain:acme-uk#administrator@group:uk-it#member
+  commerce/domain:acme-uk#administrator@group:uk-it#member
   group:uk-contractors#member@user:heidi
   group:uk-it#member@group:uk-contractors#member
   group:finance-ap#member@user:carol
-  wallet:uk-ops#spender@group:finance-ap#member
-  subscription:m365-e3#operator@user:dave
+  commerce/wallet:uk-ops#spender@group:finance-ap#member
+  commerce/subscription:m365-e3#operator@user:dave
   customer:acme#viewer@user:erin
   customer:globex#administrator@user:grace
 assertions:
   assertTrue:
     # --- PRD matrix: every Yes cell ---
     - "customer:acme#view@user:priya"
-    - "domain:acme-uk#admin@user:priya"
-    - "wallet:uk-ops#spend@user:priya"
-    - "subscription:m365-e3#change_quantity@user:priya"
-    - "subscription:m365-e3#cancel@user:priya"
-    - "wallet:ie-ops#view@user:priya"
+    - "commerce/domain:acme-uk#admin@user:priya"
+    - "commerce/wallet:uk-ops#spend@user:priya"
+    - "commerce/subscription:m365-e3#change_quantity@user:priya"
+    - "commerce/subscription:m365-e3#cancel@user:priya"
+    - "commerce/wallet:ie-ops#view@user:priya"
     - "customer:globex#view@user:priya"
     - "customer:acme#view@user:sam"
-    - "wallet:ie-ops#view@user:sam"
+    - "commerce/wallet:ie-ops#view@user:sam"
     - "customer:globex#view@user:sam"
     - "customer:acme#view@user:alice"
-    - "domain:acme-uk#admin@user:alice"
-    - "wallet:uk-ops#spend@user:alice"
-    - "subscription:m365-e3#change_quantity@user:alice"
-    - "subscription:m365-e3#cancel@user:alice"
-    - "wallet:ie-ops#view@user:alice"
-    - "domain:acme-uk#admin@user:bob"
-    - "wallet:uk-ops#spend@user:bob"
-    - "subscription:m365-e3#change_quantity@user:bob"
-    - "subscription:m365-e3#cancel@user:bob"
-    - "domain:acme-uk#admin@user:heidi"
-    - "wallet:uk-ops#spend@user:heidi"
-    - "subscription:m365-e3#change_quantity@user:heidi"
-    - "subscription:m365-e3#cancel@user:heidi"
-    - "wallet:uk-ops#spend@user:carol"
-    - "subscription:m365-e3#change_quantity@user:dave"
+    - "commerce/domain:acme-uk#admin@user:alice"
+    - "commerce/wallet:uk-ops#spend@user:alice"
+    - "commerce/subscription:m365-e3#change_quantity@user:alice"
+    - "commerce/subscription:m365-e3#cancel@user:alice"
+    - "commerce/wallet:ie-ops#view@user:alice"
+    - "commerce/domain:acme-uk#admin@user:bob"
+    - "commerce/wallet:uk-ops#spend@user:bob"
+    - "commerce/subscription:m365-e3#change_quantity@user:bob"
+    - "commerce/subscription:m365-e3#cancel@user:bob"
+    - "commerce/domain:acme-uk#admin@user:heidi"
+    - "commerce/wallet:uk-ops#spend@user:heidi"
+    - "commerce/subscription:m365-e3#change_quantity@user:heidi"
+    - "commerce/subscription:m365-e3#cancel@user:heidi"
+    - "commerce/wallet:uk-ops#spend@user:carol"
+    - "commerce/subscription:m365-e3#change_quantity@user:dave"
     - "customer:acme#view@user:erin"
     - "customer:globex#view@user:grace"
     # --- Additional: not in the PRD matrix, derived from the schema's stated rules ---
     - "group:uk-it#member@user:heidi"
     - "group:uk-it#member@user:bob"
-    - "subscription:m365-e3#view@user:sam"
-    - "wallet:uk-ops#view@user:carol"
-    - "subscription:m365-e3#view@user:dave"
+    - "commerce/subscription:m365-e3#view@user:sam"
+    - "commerce/wallet:uk-ops#view@user:carol"
+    - "commerce/subscription:m365-e3#view@user:dave"
     - "customer:acme#delete@user:priya"
     - "group:finance-ap#manage@user:alice"
     - "group:support-team#manage@user:priya"
-    - "wallet:uk-ops#create_subscription@user:carol"
+    - "commerce/wallet:uk-ops#create_subscription@user:carol"
   assertFalse:
     # --- PRD matrix: every No cell ---
-    - "domain:acme-uk#admin@user:sam"
-    - "wallet:uk-ops#spend@user:sam"
-    - "subscription:m365-e3#change_quantity@user:sam"
-    - "subscription:m365-e3#cancel@user:sam"
+    - "commerce/domain:acme-uk#admin@user:sam"
+    - "commerce/wallet:uk-ops#spend@user:sam"
+    - "commerce/subscription:m365-e3#change_quantity@user:sam"
+    - "commerce/subscription:m365-e3#cancel@user:sam"
     - "customer:globex#view@user:alice"
     - "customer:acme#view@user:bob"
-    - "wallet:ie-ops#view@user:bob"
+    - "commerce/wallet:ie-ops#view@user:bob"
     - "customer:globex#view@user:bob"
     - "customer:acme#view@user:heidi"
-    - "wallet:ie-ops#view@user:heidi"
+    - "commerce/wallet:ie-ops#view@user:heidi"
     - "customer:globex#view@user:heidi"
     - "customer:acme#view@user:carol"
-    - "domain:acme-uk#admin@user:carol"
-    - "subscription:m365-e3#change_quantity@user:carol"
-    - "subscription:m365-e3#cancel@user:carol"
-    - "wallet:ie-ops#view@user:carol"
+    - "commerce/domain:acme-uk#admin@user:carol"
+    - "commerce/subscription:m365-e3#change_quantity@user:carol"
+    - "commerce/subscription:m365-e3#cancel@user:carol"
+    - "commerce/wallet:ie-ops#view@user:carol"
     - "customer:globex#view@user:carol"
     - "customer:acme#view@user:dave"
-    - "domain:acme-uk#admin@user:dave"
-    - "wallet:uk-ops#spend@user:dave"
-    - "subscription:m365-e3#cancel@user:dave"
-    - "wallet:ie-ops#view@user:dave"
+    - "commerce/domain:acme-uk#admin@user:dave"
+    - "commerce/wallet:uk-ops#spend@user:dave"
+    - "commerce/subscription:m365-e3#cancel@user:dave"
+    - "commerce/wallet:ie-ops#view@user:dave"
     - "customer:globex#view@user:dave"
-    - "domain:acme-uk#admin@user:erin"
-    - "wallet:uk-ops#spend@user:erin"
-    - "subscription:m365-e3#change_quantity@user:erin"
-    - "subscription:m365-e3#cancel@user:erin"
-    - "wallet:ie-ops#view@user:erin"
+    - "commerce/domain:acme-uk#admin@user:erin"
+    - "commerce/wallet:uk-ops#spend@user:erin"
+    - "commerce/subscription:m365-e3#change_quantity@user:erin"
+    - "commerce/subscription:m365-e3#cancel@user:erin"
+    - "commerce/wallet:ie-ops#view@user:erin"
     - "customer:globex#view@user:erin"
     - "customer:acme#view@user:grace"
-    - "domain:acme-uk#admin@user:grace"
-    - "wallet:uk-ops#spend@user:grace"
-    - "subscription:m365-e3#change_quantity@user:grace"
-    - "subscription:m365-e3#cancel@user:grace"
-    - "wallet:ie-ops#view@user:grace"
+    - "commerce/domain:acme-uk#admin@user:grace"
+    - "commerce/wallet:uk-ops#spend@user:grace"
+    - "commerce/subscription:m365-e3#change_quantity@user:grace"
+    - "commerce/subscription:m365-e3#cancel@user:grace"
+    - "commerce/wallet:ie-ops#view@user:grace"
     - "customer:acme#view@user:frank"
-    - "domain:acme-uk#admin@user:frank"
-    - "wallet:uk-ops#spend@user:frank"
-    - "subscription:m365-e3#change_quantity@user:frank"
-    - "subscription:m365-e3#cancel@user:frank"
-    - "wallet:ie-ops#view@user:frank"
+    - "commerce/domain:acme-uk#admin@user:frank"
+    - "commerce/wallet:uk-ops#spend@user:frank"
+    - "commerce/subscription:m365-e3#change_quantity@user:frank"
+    - "commerce/subscription:m365-e3#cancel@user:frank"
+    - "commerce/wallet:ie-ops#view@user:frank"
     - "customer:globex#view@user:frank"
     # --- Additional: isolation and non-inheritance boundaries ---
     - "customer:acme#delete@user:alice"
-    - "domain:acme-uk#view@user:erin"
-    - "wallet:uk-ops#top_up@user:carol"
-    - "wallet:uk-ops#view@user:dave"
-    - "subscription:azure-plan#view@user:dave"
+    - "commerce/domain:acme-uk#view@user:erin"
+    - "commerce/wallet:uk-ops#top_up@user:carol"
+    - "commerce/wallet:uk-ops#view@user:dave"
+    - "commerce/subscription:azure-plan#view@user:dave"
     - "group:support-team#manage@user:sam"
     - "group:uk-it#manage@user:grace"
     - "customer:acme#view@user:frank"
-    - "subscription:m365-e3#cancel@user:sam"
+    - "commerce/subscription:m365-e3#cancel@user:sam"

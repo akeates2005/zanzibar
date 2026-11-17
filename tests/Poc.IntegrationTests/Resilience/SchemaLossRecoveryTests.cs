@@ -41,7 +41,7 @@ public sealed class SchemaLossRecoveryTests : ApiTestBase
         var (seed, _) = ValidationYaml.Load();
         var store = Host.Services.GetRequiredService<IRelationshipStore>();
         var actual = new List<Relationship>();
-        foreach (var type in new[] { "platform", "group", "customer", "domain", "wallet", "subscription" })
+        foreach (var type in new[] { "platform", "group", "customer", "commerce/domain", "commerce/wallet", "commerce/subscription" })
             actual.AddRange(await store.ReadAsync(new RelationshipFilter(type), Ct));
         Assert.Equal(seed.Select(t => t.ToString()).Order(), actual.Select(t => t.ToString()).Order());
     }

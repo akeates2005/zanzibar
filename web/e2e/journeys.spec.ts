@@ -107,7 +107,7 @@ test('a viewer sees disabled actions that name what is missing, and the API refu
 });
 
 test('an administrator grants and revokes access through the Access tab and the grantee sees it at once', async ({ page }) => {
-  await openAs(page, 'alice', '/resources/domain/acme-ie/access');
+  await openAs(page, 'alice', '/resources/commerce/domain/acme-ie/access');
   const directGrants = page.getByTestId('direct-grants');
   await expect(directGrants.getByText('Nobody has been granted a role on this object directly')).toBeVisible();
 
@@ -138,7 +138,7 @@ test('an administrator grants and revokes access through the Access tab and the 
 
   // Alice revokes it
   await switchTo(page, 'alice');
-  await page.goto('/resources/domain/acme-ie/access');
+  await page.goto('/resources/commerce/domain/acme-ie/access');
   await page.getByRole('button', { name: 'Remove Erin Evans viewer' }).click();
   await expect(directGrants.getByText('Nobody has been granted a role on this object directly')).toBeVisible();
   await expect(page.getByTestId('audit').getByRole('row', { name: /Revoke/ })).toBeVisible();

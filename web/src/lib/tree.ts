@@ -69,7 +69,7 @@ export function moveTargets(
   const customer = walletAncestors.find((a) => a.type === 'customer');
   if (!customer) return [];
   return tree
-    .filter((n) => n.type === 'domain' && n.id !== currentDomainId)
+    .filter((n) => n.type === 'commerce/domain' && n.id !== currentDomainId)
     .filter((n) => {
       const owner = n.ancestors.find((a) => a.type === 'customer');
       return owner !== undefined && (customer.id !== null && owner.id !== null ? owner.id === customer.id : owner.name === customer.name);

@@ -19,7 +19,7 @@ describe('format', () => {
   });
 
   it('labels object types and passes unknown ones through', () => {
-    expect(typeLabel('subscription')).toBe('Subscription');
+    expect(typeLabel('commerce/subscription')).toBe('Subscription');
     expect(typeLabel('mystery')).toBe('mystery');
   });
 

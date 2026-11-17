@@ -32,12 +32,12 @@ describe('ResourceBrowser', () => {
 
   it('shows an ancestor the user cannot view as plain text and the objects they can open as links', () => {
     nodes = [
-      { type: 'wallet', id: 'uk-ops', name: 'UK Operations', ancestors: [crumb('platform', 'Platform', null), crumb('customer', 'Acme Ltd', null), crumb('domain', 'Acme UK', null)] },
+      { type: 'commerce/wallet', id: 'uk-ops', name: 'UK Operations', ancestors: [crumb('platform', 'Platform', null), crumb('customer', 'Acme Ltd', null), crumb('commerce/domain', 'Acme UK', null)] },
     ];
     renderWithProviders(<ResourceBrowser />);
 
     const link = screen.getByRole('link', { name: 'UK Operations' });
-    expect(link).toHaveAttribute('href', '/resources/wallet/uk-ops');
+    expect(link).toHaveAttribute('href', '/resources/commerce/wallet/uk-ops');
     // The three ancestors are plain text (titled as unopenable), in order, and none of them is a link.
     const labels = screen.getAllByTitle('You cannot open this');
     expect(labels.map((l) => l.textContent)).toEqual(['Platform', 'Acme Ltd', 'Acme UK']);
@@ -48,13 +48,13 @@ describe('ResourceBrowser', () => {
   it('nests a child under its parent and links both when both are viewable', () => {
     nodes = [
       { type: 'customer', id: 'acme', name: 'Acme Ltd', ancestors: [] },
-      { type: 'domain', id: 'acme-uk', name: 'Acme UK', ancestors: [crumb('customer', 'Acme Ltd', 'acme')] },
+      { type: 'commerce/domain', id: 'acme-uk', name: 'Acme UK', ancestors: [crumb('customer', 'Acme Ltd', 'acme')] },
     ];
     renderWithProviders(<ResourceBrowser />);
 
     const customerRow = screen.getByTestId('tree-customer-acme').closest('li');
     expect(customerRow).not.toBeNull();
-    expect(within(customerRow as HTMLElement).getByRole('link', { name: 'Acme UK' })).toHaveAttribute('href', '/resources/domain/acme-uk');
+    expect(within(customerRow as HTMLElement).getByRole('link', { name: 'Acme UK' })).toHaveAttribute('href', '/resources/commerce/domain/acme-uk');
   });
 
   it('offers New customer disabled when the user may not create one', () => {

@@ -11,7 +11,7 @@ describe('buildTree', () => {
   it('nests each object under its ancestors', () => {
     const tree = buildTree([
       node('customer', 'acme', 'Acme', [crumb('platform', 'Platform', 'main')]),
-      node('domain', 'acme-uk', 'Acme UK', [crumb('platform', 'Platform', 'main'), crumb('customer', 'Acme', 'acme')]),
+      node('commerce/domain', 'acme-uk', 'Acme UK', [crumb('platform', 'Platform', 'main'), crumb('customer', 'Acme', 'acme')]),
     ]);
 
     expect(tree).toHaveLength(1);
@@ -20,7 +20,7 @@ describe('buildTree', () => {
   });
 
   it('shows ancestors the user cannot view as labels with no id, so they cannot become links', () => {
-    const tree = buildTree([node('domain', 'acme-uk', 'Acme UK', [crumb('platform', 'Platform', null), crumb('customer', 'Acme Ltd', null)])]);
+    const tree = buildTree([node('commerce/domain', 'acme-uk', 'Acme UK', [crumb('platform', 'Platform', null), crumb('customer', 'Acme Ltd', null)])]);
 
     const platform = tree[0];
     const customer = platform?.children[0];
@@ -32,7 +32,7 @@ describe('buildTree', () => {
 
   it('merges siblings that share the same viewable ancestor and keeps sibling order stable by name', () => {
     const ancestors = [crumb('customer', 'Acme', 'acme')];
-    const tree = buildTree([node('domain', 'b', 'Beta', ancestors), node('domain', 'a', 'Alpha', ancestors)]);
+    const tree = buildTree([node('commerce/domain', 'b', 'Beta', ancestors), node('commerce/domain', 'a', 'Alpha', ancestors)]);
 
     expect(tree).toHaveLength(1);
     expect(tree[0]?.children.map((c) => c.name)).toEqual(['Alpha', 'Beta']);
@@ -46,7 +46,7 @@ describe('buildTree', () => {
   it('gives a viewable object that is also someone else\'s ancestor a single row', () => {
     const tree = buildTree([
       node('customer', 'acme', 'Acme', []),
-      node('domain', 'acme-uk', 'Acme UK', [crumb('customer', 'Acme', 'acme')]),
+      node('commerce/domain', 'acme-uk', 'Acme UK', [crumb('customer', 'Acme', 'acme')]),
     ]);
     expect(tree).toHaveLength(1);
     expect(tree[0]?.id).toBe('acme');
@@ -61,20 +61,20 @@ describe('buildTree', () => {
 
 describe('moveTargets', () => {
   const tree = [
-    node('domain', 'acme-uk', 'Acme UK', [crumb('customer', 'Acme', 'acme')]),
-    node('domain', 'acme-ie', 'Acme Ireland', [crumb('customer', 'Acme', 'acme')]),
-    node('domain', 'globex-main', 'Globex Main', [crumb('customer', 'Globex', 'globex')]),
-    node('wallet', 'uk-ops', 'UK Ops', [crumb('customer', 'Acme', 'acme'), crumb('domain', 'Acme UK', 'acme-uk')]),
+    node('commerce/domain', 'acme-uk', 'Acme UK', [crumb('customer', 'Acme', 'acme')]),
+    node('commerce/domain', 'acme-ie', 'Acme Ireland', [crumb('customer', 'Acme', 'acme')]),
+    node('commerce/domain', 'globex-main', 'Globex Main', [crumb('customer', 'Globex', 'globex')]),
+    node('commerce/wallet', 'uk-ops', 'UK Ops', [crumb('customer', 'Acme', 'acme'), crumb('commerce/domain', 'Acme UK', 'acme-uk')]),
   ];
 
   it('offers only other domains under the same customer', () => {
-    expect(moveTargets(tree, [crumb('customer', 'Acme', 'acme'), crumb('domain', 'Acme UK', 'acme-uk')], 'acme-uk')).toEqual([
+    expect(moveTargets(tree, [crumb('customer', 'Acme', 'acme'), crumb('commerce/domain', 'Acme UK', 'acme-uk')], 'acme-uk')).toEqual([
       { id: 'acme-ie', name: 'Acme Ireland' },
     ]);
   });
 
   it('matches by customer name when the customer cannot be viewed', () => {
-    const labelled = [node('domain', 'acme-ie', 'Acme Ireland', [crumb('customer', 'Acme Ltd', null)]), node('domain', 'x', 'Elsewhere', [crumb('customer', 'Other', null)])];
+    const labelled = [node('commerce/domain', 'acme-ie', 'Acme Ireland', [crumb('customer', 'Acme Ltd', null)]), node('commerce/domain', 'x', 'Elsewhere', [crumb('customer', 'Other', null)])];
     expect(moveTargets(labelled, [crumb('customer', 'Acme Ltd', null)], 'acme-uk')).toEqual([{ id: 'acme-ie', name: 'Acme Ireland' }]);
   });
 

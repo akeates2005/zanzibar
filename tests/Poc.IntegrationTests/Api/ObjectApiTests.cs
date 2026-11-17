@@ -45,7 +45,7 @@ public sealed class ObjectApiTests : ApiTestBase
         var wallet = await (await (await AsAsync("carol")).GetAsync("/api/wallets/uk-ops")).ExpectAsync(HttpStatusCode.OK);
         var keys = wallet.GetProperty("permissions").EnumerateObject().Select(p => p.Name).Order().ToArray();
 
-        Assert.Equal(SchemaCatalog.PermissionsOf("wallet").Order(), keys);
+        Assert.Equal(SchemaCatalog.PermissionsOf("commerce/wallet").Order(), keys);
         Assert.True(wallet.Permission("spend"));
         Assert.True(wallet.Permission("create_subscription"));
         Assert.False(wallet.Permission("top_up"));
@@ -197,7 +197,7 @@ public sealed class ObjectApiTests : ApiTestBase
     public async Task A_wallet_administrator_can_run_a_wallet_but_cannot_remove_it()
     {
         var alice = await AsAsync("alice");
-        await (await alice.PutJsonAsync("/api/access/wallet/ie-ops/grants", new { relation = "administrator", subject = new { type = "user", id = "frank" } })).ExpectAsync(HttpStatusCode.OK);
+        await (await alice.PutJsonAsync("/api/access/grants?type=commerce/wallet&id=ie-ops", new { relation = "administrator", subject = new { type = "user", id = "frank" } })).ExpectAsync(HttpStatusCode.OK);
         var frank = await AsAsync("frank");
 
         await (await frank.PostJsonAsync("/api/wallets/ie-ops/top-up", new { amount = 1 })).ExpectAsync(HttpStatusCode.OK);
@@ -237,7 +237,7 @@ public sealed class ObjectApiTests : ApiTestBase
             await (await priya.DeleteAsync(url)).ExpectAsync(HttpStatusCode.NoContent);
 
         var store = (IRelationshipStore)Host.Services.GetService(typeof(IRelationshipStore))!;
-        foreach (var (type, id) in new[] { ("subscription", sub), ("wallet", wallet), ("domain", domain), ("customer", customer) })
+        foreach (var (type, id) in new[] { ("commerce/subscription", sub), ("commerce/wallet", wallet), ("commerce/domain", domain), ("customer", customer) })
             Assert.Empty(await store.ReadAsync(new RelationshipFilter(type, id), Ct));
     }
 
@@ -246,25 +246,25 @@ public sealed class ObjectApiTests : ApiTestBase
     [Fact]
     public async Task Children_lists_only_what_the_caller_can_view_and_needs_view_on_the_parent()
     {
-        Assert.Equal(["Acme Ireland", "Acme UK"], Names(await (await (await AsAsync("alice")).GetAsync("/api/customer/acme/children")).ExpectAsync(HttpStatusCode.OK)));
-        Assert.Equal(["UK Operations", "UK R&D"], Names(await (await (await AsAsync("bob")).GetAsync("/api/domain/acme-uk/children")).ExpectAsync(HttpStatusCode.OK)));
+        Assert.Equal(["Acme Ireland", "Acme UK"], Names(await (await (await AsAsync("alice")).GetAsync("/api/children?type=customer&id=acme")).ExpectAsync(HttpStatusCode.OK)));
+        Assert.Equal(["UK Operations", "UK R&D"], Names(await (await (await AsAsync("bob")).GetAsync("/api/children?type=commerce/domain&id=acme-uk")).ExpectAsync(HttpStatusCode.OK)));
 
-        await (await (await AsAsync("bob")).GetAsync("/api/customer/acme/children")).ExpectProblemAsync(HttpStatusCode.NotFound); // cannot see Acme
+        await (await (await AsAsync("bob")).GetAsync("/api/children?type=customer&id=acme")).ExpectProblemAsync(HttpStatusCode.NotFound); // cannot see Acme
         // Erin can view Acme but, as a customer viewer, nothing below it: the list must be empty, not the domains she cannot view.
-        Assert.Equal(0, (await (await (await AsAsync("erin")).GetAsync("/api/customer/acme/children")).ExpectAsync(HttpStatusCode.OK)).GetArrayLength());
-        await (await (await AsAsync("carol")).GetAsync("/api/domain/acme-uk/children")).ExpectProblemAsync(HttpStatusCode.NotFound);
+        Assert.Equal(0, (await (await (await AsAsync("erin")).GetAsync("/api/children?type=customer&id=acme")).ExpectAsync(HttpStatusCode.OK)).GetArrayLength());
+        await (await (await AsAsync("carol")).GetAsync("/api/children?type=commerce/domain&id=acme-uk")).ExpectProblemAsync(HttpStatusCode.NotFound);
         // Carol can see the wallet but spenders do not inherit view of subscriptions: an empty list, not a leak.
-        Assert.Equal(0, (await (await (await AsAsync("carol")).GetAsync("/api/wallet/uk-ops/children")).ExpectAsync(HttpStatusCode.OK)).GetArrayLength());
-        await (await (await AsAsync("dave")).GetAsync("/api/wallet/uk-ops/children")).ExpectProblemAsync(HttpStatusCode.NotFound);
-        await (await (await AsAsync("priya")).GetAsync("/api/subscription/m365-e3/children")).ExpectProblemAsync(HttpStatusCode.NotFound); // a leaf has none
+        Assert.Equal(0, (await (await (await AsAsync("carol")).GetAsync("/api/children?type=commerce/wallet&id=uk-ops")).ExpectAsync(HttpStatusCode.OK)).GetArrayLength());
+        await (await (await AsAsync("dave")).GetAsync("/api/children?type=commerce/wallet&id=uk-ops")).ExpectProblemAsync(HttpStatusCode.NotFound);
+        await (await (await AsAsync("priya")).GetAsync("/api/children?type=commerce/subscription&id=m365-e3")).ExpectProblemAsync(HttpStatusCode.NotFound); // a leaf has none
     }
 
     [Fact]
     public async Task The_platform_lists_every_customer_to_its_admin_and_to_support()
     {
-        Assert.Equal(["Acme Ltd", "Globex Corporation"], Names(await (await (await AsAsync("priya")).GetAsync("/api/platform/main/children")).ExpectAsync(HttpStatusCode.OK)));
-        Assert.Equal(["Acme Ltd", "Globex Corporation"], Names(await (await (await AsAsync("sam")).GetAsync("/api/platform/main/children")).ExpectAsync(HttpStatusCode.OK)));
-        await (await (await AsAsync("alice")).GetAsync("/api/platform/main/children")).ExpectProblemAsync(HttpStatusCode.NotFound);
+        Assert.Equal(["Acme Ltd", "Globex Corporation"], Names(await (await (await AsAsync("priya")).GetAsync("/api/children?type=platform&id=main")).ExpectAsync(HttpStatusCode.OK)));
+        Assert.Equal(["Acme Ltd", "Globex Corporation"], Names(await (await (await AsAsync("sam")).GetAsync("/api/children?type=platform&id=main")).ExpectAsync(HttpStatusCode.OK)));
+        await (await (await AsAsync("alice")).GetAsync("/api/children?type=platform&id=main")).ExpectProblemAsync(HttpStatusCode.NotFound);
     }
 
     [Fact]

@@ -14,9 +14,9 @@ export function formatDateTime(value: string | null | undefined): string {
 const TYPE_LABELS: Record<string, string> = {
   platform: 'Platform',
   customer: 'Customer',
-  domain: 'Domain',
-  wallet: 'Wallet',
-  subscription: 'Subscription',
+  'commerce/domain': 'Domain',
+  'commerce/wallet': 'Wallet',
+  'commerce/subscription': 'Subscription',
   group: 'Group',
   user: 'User',
 };

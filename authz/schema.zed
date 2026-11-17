@@ -35,7 +35,7 @@ definition customer {
     permission create_group = admin
 }
 
-definition domain {
+definition commerce/domain {
     relation parent: customer
     relation administrator: user | group#member
     relation viewer: user | group#member
@@ -49,8 +49,8 @@ definition domain {
     permission create_wallet = admin
 }
 
-definition wallet {
-    relation parent: domain
+definition commerce/wallet {
+    relation parent: commerce/domain
     relation administrator: user | group#member
     relation spender: user | group#member
     relation viewer: user | group#member
@@ -67,8 +67,8 @@ definition wallet {
     permission create_subscription = spend
 }
 
-definition subscription {
-    relation parent: wallet
+definition commerce/subscription {
+    relation parent: commerce/wallet
     relation administrator: user | group#member
     relation operator: user | group#member
     relation viewer: user | group#member

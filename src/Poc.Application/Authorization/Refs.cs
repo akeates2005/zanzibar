@@ -1,6 +1,6 @@
 namespace Poc.Application.Authorization;
 
-/// <summary>An object in the authorisation graph, e.g. <c>wallet:uk-ops</c>.</summary>
+/// <summary>An object in the authorisation graph, e.g. <c>commerce/wallet:uk-ops</c>.</summary>
 public readonly record struct ResourceRef(string Type, string Id)
 {
     public override string ToString() => $"{Type}:{Id}";

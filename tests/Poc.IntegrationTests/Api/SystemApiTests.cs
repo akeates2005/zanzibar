@@ -46,7 +46,7 @@ public sealed class SystemApiTests : ApiTestBase
     public async Task A_dead_outbox_message_shows_on_the_system_screen_with_its_error()
     {
         ExpectDrift = true; // this test leaves a deliberately dead message behind
-        Host.Faults.PoisonWrite = u => u.Any(x => x.Relationship.Resource.Id.Length > 0 && x.Relationship.Resource.Type == "wallet");
+        Host.Faults.PoisonWrite = u => u.Any(x => x.Relationship.Resource.Id.Length > 0 && x.Relationship.Resource.Type == "commerce/wallet");
         var alice = await AsAsync("alice");
         await (await alice.PostJsonAsync("/api/domains/acme-uk/wallets", new { name = "Poisoned" })).ExpectAsync(HttpStatusCode.Accepted);
 
@@ -74,13 +74,13 @@ public sealed class SystemApiTests : ApiTestBase
         Assert.True(clean.GetProperty("inSync").GetBoolean());
 
         var store = Host.Services.GetRequiredService<IRelationshipStore>();
-        await store.DeleteAsync(new RelationshipFilter("wallet", "uk-ops", "parent"), Ct);
-        await store.WriteAsync([RelationshipUpdate.Touch(ValidationYaml.ParseTuple("wallet:ie-ops#parent@domain:globex-main"))], Ct);
+        await store.DeleteAsync(new RelationshipFilter("commerce/wallet", "uk-ops", "parent"), Ct);
+        await store.WriteAsync([RelationshipUpdate.Touch(ValidationYaml.ParseTuple("commerce/wallet:ie-ops#parent@commerce/domain:globex-main"))], Ct);
 
         var drift = await (await priya.PostJsonAsync("/api/system/reconcile")).ExpectAsync(HttpStatusCode.OK);
         Assert.False(drift.GetProperty("inSync").GetBoolean());
-        Assert.Equal(["wallet:uk-ops#parent@domain:acme-uk"], drift.GetProperty("missing").EnumerateArray().Select(m => m.GetString()!).ToArray());
-        Assert.Equal(["wallet:ie-ops#parent@domain:globex-main"], drift.GetProperty("unexpected").EnumerateArray().Select(m => m.GetString()!).ToArray());
+        Assert.Equal(["commerce/wallet:uk-ops#parent@commerce/domain:acme-uk"], drift.GetProperty("missing").EnumerateArray().Select(m => m.GetString()!).ToArray());
+        Assert.Equal(["commerce/wallet:ie-ops#parent@commerce/domain:globex-main"], drift.GetProperty("unexpected").EnumerateArray().Select(m => m.GetString()!).ToArray());
         Assert.False((await (await priya.PostJsonAsync("/api/system/reconcile")).JsonAsync()).GetProperty("inSync").GetBoolean()); // detecting twice fixes nothing
 
         var repaired = await (await priya.PostJsonAsync("/api/system/reconcile?repair=true")).ExpectAsync(HttpStatusCode.OK);
@@ -99,7 +99,7 @@ public sealed class SystemApiTests : ApiTestBase
     {
         var alice = await AsAsync("alice");
         await (await alice.PostJsonAsync("/api/customers/acme/groups", new { name = "Scratch" })).ExpectAsync(HttpStatusCode.Created);
-        await (await alice.PutJsonAsync("/api/access/customer/acme/grants", new { relation = "viewer", subject = new { type = "user", id = "frank" } })).ExpectAsync(HttpStatusCode.OK);
+        await (await alice.PutJsonAsync("/api/access/grants?type=customer&id=acme", new { relation = "viewer", subject = new { type = "user", id = "frank" } })).ExpectAsync(HttpStatusCode.OK);
         Assert.Equal(HttpStatusCode.OK, (await (await AsAsync("frank")).GetAsync("/api/customers/acme")).StatusCode);
 
         var reset = await (await (await AsAsync("priya")).PostJsonAsync("/api/system/reset")).ExpectAsync(HttpStatusCode.OK);
@@ -111,7 +111,7 @@ public sealed class SystemApiTests : ApiTestBase
         var (seed, _) = ValidationYaml.Load();
         var store = Host.Services.GetRequiredService<IRelationshipStore>();
         var actual = new List<Relationship>();
-        foreach (var type in new[] { "platform", "group", "customer", "domain", "wallet", "subscription" })
+        foreach (var type in new[] { "platform", "group", "customer", "commerce/domain", "commerce/wallet", "commerce/subscription" })
             actual.AddRange(await store.ReadAsync(new RelationshipFilter(type), Ct));
         Assert.Equal(seed.Select(t => t.ToString()).Order(), actual.Select(t => t.ToString()).Order());
     }

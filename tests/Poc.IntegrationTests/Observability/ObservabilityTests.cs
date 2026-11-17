@@ -124,7 +124,7 @@ public sealed partial class ObservabilityTests : ApiTestBase
         Assert.NotEmpty(checks);
         Assert.All(checks, c => Assert.Contains("subject=user:alice", c.Message, StringComparison.Ordinal));
 
-        var view = checks.First(c => c.Message.Contains("permission=view resource=wallet:uk-ops", StringComparison.Ordinal));
+        var view = checks.First(c => c.Message.Contains("permission=view resource=commerce/wallet:uk-ops", StringComparison.Ordinal));
         Assert.Contains("allowed=True", view.Message, StringComparison.Ordinal);
         Assert.Matches(@"durationMs=\d+(\.\d+)?", view.Message);
         Assert.Contains($"traceId={traceId}", view.Message, StringComparison.Ordinal);
@@ -136,15 +136,15 @@ public sealed partial class ObservabilityTests : ApiTestBase
         var dave = await AsAsync("dave");
         await (await dave.GetAsync("/api/wallets/uk-ops")).ExpectProblemAsync(HttpStatusCode.NotFound);
 
-        Assert.Contains(Host.Logs.Entries, l => l.Level == LogLevel.Debug && l.Message.Contains("subject=user:dave permission=view resource=wallet:uk-ops allowed=False", StringComparison.Ordinal));
+        Assert.Contains(Host.Logs.Entries, l => l.Level == LogLevel.Debug && l.Message.Contains("subject=user:dave permission=view resource=commerce/wallet:uk-ops allowed=False", StringComparison.Ordinal));
     }
 
     [Fact]
     public async Task Grants_and_revokes_are_logged_at_information_with_who_did_what()
     {
         var alice = await AsAsync("alice");
-        await (await alice.PutJsonAsync("/api/access/customer/acme/grants", new { relation = "viewer", subject = new { type = "user", id = "frank" } })).ExpectAsync(HttpStatusCode.OK);
-        await (await alice.DeleteAsync("/api/access/customer/acme/grants?relation=viewer&subjectType=user&subjectId=frank")).ExpectAsync(HttpStatusCode.OK);
+        await (await alice.PutJsonAsync("/api/access/grants?type=customer&id=acme", new { relation = "viewer", subject = new { type = "user", id = "frank" } })).ExpectAsync(HttpStatusCode.OK);
+        await (await alice.DeleteAsync("/api/access/grants?type=customer&id=acme&relation=viewer&subjectType=user&subjectId=frank")).ExpectAsync(HttpStatusCode.OK);
 
         var info = Host.Logs.Entries.Where(l => l.Level == LogLevel.Information && l.Category.EndsWith("AccessLog", StringComparison.Ordinal)).Select(l => l.Message).ToList();
         Assert.Contains(info, m => m.Contains("Grant applied: customer:acme#viewer@user:frank by alice", StringComparison.Ordinal));
@@ -161,14 +161,14 @@ public sealed partial class ObservabilityTests : ApiTestBase
         foreach (var user in new[] { "priya", "sam", "alice", "bob", "carol", "frank" })
         {
             var client = await AsAsync(user);
-            foreach (var url in new[] { "/api/me", "/api/tree", "/api/customers/acme", "/api/wallets/uk-ops", "/api/users?query=alice@zanzibar.example", "/api/users?query=Hughes", "/api/access/wallet/uk-ops/grants" })
+            foreach (var url in new[] { "/api/me", "/api/tree", "/api/customers/acme", "/api/wallets/uk-ops", "/api/users?query=alice@zanzibar.example", "/api/users?query=Hughes", "/api/access/grants?type=commerce/wallet&id=uk-ops" })
                 (await client.GetAsync(url)).Dispose();
         }
 
         var alice = await AsAsync("alice");
-        (await alice.PutJsonAsync("/api/access/customer/acme/grants", new { relation = "viewer", subject = new { type = "user", id = "frank" } })).Dispose();
+        (await alice.PutJsonAsync("/api/access/grants?type=customer&id=acme", new { relation = "viewer", subject = new { type = "user", id = "frank" } })).Dispose();
         (await alice.PostJsonAsync("/api/customers/acme/groups", new { name = "Logs" })).Dispose();
-        (await alice.PutJsonAsync("/api/access/customer/acme/grants", new { relation = "bogus", subject = new { type = "user", id = "frank" } })).Dispose(); // 422
+        (await alice.PutJsonAsync("/api/access/grants?type=customer&id=acme", new { relation = "bogus", subject = new { type = "user", id = "frank" } })).Dispose(); // 422
         (await (await AsAsync("erin")).PatchJsonAsync("/api/customers/acme", new { name = "x" })).Dispose(); // 403
 
         foreach (var bad in new[] { "garbage-SECRET-MARKER", "SECRET.MARKER.TOKEN", Host.Tokens.Issue(new Dictionary<string, object> { ["sub"] = "x-SECRET-MARKER" }, TimeSpan.FromMinutes(5)).Token })

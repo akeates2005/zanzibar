@@ -48,16 +48,16 @@ public sealed class ProjectorTests : PocTestBase
             sp.GetRequiredService<IRepository<Wallet>>().Add(Wallet.Create("initech-main", "Ops", "priya", Now, "initech-ops"));
             sp.GetRequiredService<IRepository<Subscription>>().Add(Subscription.Create("initech-ops", "Tools", 3, "priya", Now, "initech-tools"));
         });
-        Assert.False(await CanAsync("priya", SubscriptionSchema.Permissions.Cancel, Res("subscription", "initech-tools"))); // not projected yet
+        Assert.False(await CanAsync("priya", SubscriptionSchema.Permissions.Cancel, Res("commerce/subscription", "initech-tools"))); // not projected yet
 
         var outcome = await FlushAsync();
 
         Assert.True(outcome.FullyApplied);
         Assert.Equal(4, outcome.Processed);
-        Assert.True(await CanAsync("priya", SubscriptionSchema.Permissions.Cancel, Res("subscription", "initech-tools")));
-        Assert.True(await CanAsync("sam", SubscriptionSchema.Permissions.View, Res("subscription", "initech-tools"))); // support flows down
+        Assert.True(await CanAsync("priya", SubscriptionSchema.Permissions.Cancel, Res("commerce/subscription", "initech-tools")));
+        Assert.True(await CanAsync("sam", SubscriptionSchema.Permissions.View, Res("commerce/subscription", "initech-tools"))); // support flows down
         Assert.False(await CanAsync("alice", CustomerSchema.Permissions.View, Res("customer", "initech"))); // another customer's admin
-        Assert.True(await HasTupleAsync("subscription:initech-tools#parent@wallet:initech-ops"));
+        Assert.True(await HasTupleAsync("commerce/subscription:initech-tools#parent@commerce/wallet:initech-ops"));
     }
 
     [Fact]
@@ -78,8 +78,8 @@ public sealed class ProjectorTests : PocTestBase
     public async Task Moving_a_wallet_takes_access_from_the_old_domains_admins_on_the_next_request()
     {
         // PRD scenario: Alice moves uk-rnd from acme-uk to acme-ie; Bob and Heidi lose all access to uk-rnd and github.
-        Assert.True(await CanAsync("bob", WalletSchema.Permissions.Spend, Res("wallet", "uk-rnd")));
-        Assert.True(await CanAsync("heidi", SubscriptionSchema.Permissions.Cancel, Res("subscription", "github")));
+        Assert.True(await CanAsync("bob", WalletSchema.Permissions.Spend, Res("commerce/wallet", "uk-rnd")));
+        Assert.True(await CanAsync("heidi", SubscriptionSchema.Permissions.Cancel, Res("commerce/subscription", "github")));
 
         await MutateAsync<Wallet>("uk-rnd", w => w.MoveTo("acme-ie"));
         await FlushAsync();
@@ -87,14 +87,14 @@ public sealed class ProjectorTests : PocTestBase
         foreach (var user in new[] { "bob", "heidi" })
         {
             foreach (var permission in new[] { "view", "spend", "admin" })
-                Assert.False(await CanAsync(user, permission, Res("wallet", "uk-rnd")), $"{user} {permission} uk-rnd");
-            Assert.False(await CanAsync(user, SubscriptionSchema.Permissions.View, Res("subscription", "github")), $"{user} view github");
+                Assert.False(await CanAsync(user, permission, Res("commerce/wallet", "uk-rnd")), $"{user} {permission} uk-rnd");
+            Assert.False(await CanAsync(user, SubscriptionSchema.Permissions.View, Res("commerce/subscription", "github")), $"{user} view github");
         }
 
-        Assert.True(await CanAsync("alice", WalletSchema.Permissions.Spend, Res("wallet", "uk-rnd")));
-        Assert.True(await CanAsync("bob", WalletSchema.Permissions.Spend, Res("wallet", "uk-ops"))); // the rest of acme-uk is untouched
-        Assert.False(await HasTupleAsync("wallet:uk-rnd#parent@domain:acme-uk"));
-        Assert.True(await HasTupleAsync("wallet:uk-rnd#parent@domain:acme-ie"));
+        Assert.True(await CanAsync("alice", WalletSchema.Permissions.Spend, Res("commerce/wallet", "uk-rnd")));
+        Assert.True(await CanAsync("bob", WalletSchema.Permissions.Spend, Res("commerce/wallet", "uk-ops"))); // the rest of acme-uk is untouched
+        Assert.False(await HasTupleAsync("commerce/wallet:uk-rnd#parent@commerce/domain:acme-uk"));
+        Assert.True(await HasTupleAsync("commerce/wallet:uk-rnd#parent@commerce/domain:acme-ie"));
     }
 
     [Fact]
@@ -103,8 +103,8 @@ public sealed class ProjectorTests : PocTestBase
         await AddWalletAsync("doomed");
         await FlushAsync();
         await InScopeAsync(sp => sp.GetRequiredService<AccessService>().GrantAsync(
-            Actor.System, new GrantTarget(Res("wallet", "doomed"), WalletSchema.Relations.Viewer, SubjectRef.User("erin")), Ct));
-        Assert.True(await CanAsync("erin", WalletSchema.Permissions.View, Res("wallet", "doomed")));
+            Actor.System, new GrantTarget(Res("commerce/wallet", "doomed"), WalletSchema.Relations.Viewer, SubjectRef.User("erin")), Ct));
+        Assert.True(await CanAsync("erin", WalletSchema.Permissions.View, Res("commerce/wallet", "doomed")));
 
         await InScopeAsync(async sp =>
         {
@@ -117,14 +117,14 @@ public sealed class ProjectorTests : PocTestBase
         await FlushAsync();
 
         Assert.Empty(await Host.Get<IRelationshipStore>().ReadAsync(new RelationshipFilter(WalletSchema.Type, "doomed"), Ct));
-        Assert.False(await CanAsync("erin", WalletSchema.Permissions.View, Res("wallet", "doomed")));
-        Assert.False(await CanAsync("alice", WalletSchema.Permissions.View, Res("wallet", "doomed")));
+        Assert.False(await CanAsync("erin", WalletSchema.Permissions.View, Res("commerce/wallet", "doomed")));
+        Assert.False(await CanAsync("alice", WalletSchema.Permissions.View, Res("commerce/wallet", "doomed")));
     }
 
     [Fact]
     public async Task Deleting_a_group_removes_it_and_every_place_it_was_granted_or_nested()
     {
-        Assert.True(await CanAsync("heidi", DomainSchema.Permissions.Admin, Res("domain", "acme-uk")));
+        Assert.True(await CanAsync("heidi", DomainSchema.Permissions.Admin, Res("commerce/domain", "acme-uk")));
 
         await InScopeAsync(async sp =>
         {
@@ -132,8 +132,8 @@ public sealed class ProjectorTests : PocTestBase
             await access.DeleteGroupAsync(Actor.ForUser("alice"), "uk-contractors", Ct);
         });
 
-        Assert.False(await CanAsync("heidi", DomainSchema.Permissions.Admin, Res("domain", "acme-uk")));
-        Assert.True(await CanAsync("bob", DomainSchema.Permissions.Admin, Res("domain", "acme-uk"))); // Bob is in uk-it directly
+        Assert.False(await CanAsync("heidi", DomainSchema.Permissions.Admin, Res("commerce/domain", "acme-uk")));
+        Assert.True(await CanAsync("bob", DomainSchema.Permissions.Admin, Res("commerce/domain", "acme-uk"))); // Bob is in uk-it directly
         Assert.False(await HasTupleAsync("group:uk-it#member@group:uk-contractors#member"));
         Assert.Empty(await Host.Get<IRelationshipStore>().ReadAsync(new RelationshipFilter(GroupSchema.Type, "uk-contractors"), Ct));
     }
@@ -147,9 +147,9 @@ public sealed class ProjectorTests : PocTestBase
             await access.CreateGroupAsync(Actor.ForUser("alice"), Poc.Domain.Directory.GroupOwnerType.Customer, "acme", "Everywhere", Ct, "everywhere");
             var members = SubjectRef.GroupMembers("everywhere");
             await access.GrantAsync(Actor.System, new GrantTarget(Res("customer", "acme"), CustomerSchema.Relations.Viewer, members), Ct);
-            await access.GrantAsync(Actor.System, new GrantTarget(Res("domain", "acme-ie"), DomainSchema.Relations.Viewer, members), Ct);
-            await access.GrantAsync(Actor.System, new GrantTarget(Res("wallet", "ie-ops"), WalletSchema.Relations.Spender, members), Ct);
-            await access.GrantAsync(Actor.System, new GrantTarget(Res("subscription", "m365-bp"), SubscriptionSchema.Relations.Operator, members), Ct);
+            await access.GrantAsync(Actor.System, new GrantTarget(Res("commerce/domain", "acme-ie"), DomainSchema.Relations.Viewer, members), Ct);
+            await access.GrantAsync(Actor.System, new GrantTarget(Res("commerce/wallet", "ie-ops"), WalletSchema.Relations.Spender, members), Ct);
+            await access.GrantAsync(Actor.System, new GrantTarget(Res("commerce/subscription", "m365-bp"), SubscriptionSchema.Relations.Operator, members), Ct);
             await access.AddGroupMemberAsync(Actor.System, "finance-ap", members, Ct);
         });
         Assert.Equal(5, (await AllTuplesAsync()).Count(t => t.Subject.Id == "everywhere"));
@@ -168,8 +168,8 @@ public sealed class ProjectorTests : PocTestBase
         await MutateAsync<Wallet>("ordered", w => w.MoveTo("acme-ie"));
         await FlushAsync();
 
-        Assert.True(await HasTupleAsync("wallet:ordered#parent@domain:acme-ie"));
-        Assert.False(await HasTupleAsync("wallet:ordered#parent@domain:acme-uk"));
+        Assert.True(await HasTupleAsync("commerce/wallet:ordered#parent@commerce/domain:acme-ie"));
+        Assert.False(await HasTupleAsync("commerce/wallet:ordered#parent@commerce/domain:acme-uk"));
     }
 
     [Fact]
@@ -208,8 +208,8 @@ public sealed class ProjectorTests : PocTestBase
 
         Assert.Equal(4, outcomes.Sum(o => o.Processed));
         Assert.All(outcomes, o => Assert.True(o.FullyApplied));
-        Assert.True(await HasTupleAsync("wallet:race-2#parent@domain:acme-ie"));
-        Assert.False(await HasTupleAsync("wallet:race-2#parent@domain:acme-uk"));
+        Assert.True(await HasTupleAsync("commerce/wallet:race-2#parent@commerce/domain:acme-ie"));
+        Assert.False(await HasTupleAsync("commerce/wallet:race-2#parent@commerce/domain:acme-uk"));
         Assert.All(await OutboxAsync(), m => Assert.Equal(1, m.Attempts));
     }
 
@@ -226,8 +226,8 @@ public sealed class ProjectorTests : PocTestBase
         Assert.Equal(1, first.Processed);
         Assert.Equal(1, first.Failed);
         Assert.Equal(1, first.Remaining);
-        Assert.True(await HasTupleAsync("wallet:healthy#parent@domain:acme-uk"));
-        Assert.False(await HasTupleAsync("wallet:poisoned#parent@domain:acme-uk"));
+        Assert.True(await HasTupleAsync("commerce/wallet:healthy#parent@commerce/domain:acme-uk"));
+        Assert.False(await HasTupleAsync("commerce/wallet:poisoned#parent@commerce/domain:acme-uk"));
 
         for (var attempt = 2; attempt <= 5; attempt++) Assert.Equal(1, (await FlushAsync()).Failed);
 
@@ -260,9 +260,9 @@ public sealed class ProjectorTests : PocTestBase
 
         Assert.Equal(1, outcome.Processed); // only "unrelated"
         Assert.Equal(2, outcome.Remaining); // the dead create and the blocked move
-        Assert.True(await HasTupleAsync("wallet:unrelated#parent@domain:acme-uk"));
-        Assert.False(await HasTupleAsync("wallet:stuck#parent@domain:acme-ie"));
-        Assert.False(await HasTupleAsync("wallet:stuck#parent@domain:acme-uk"));
+        Assert.True(await HasTupleAsync("commerce/wallet:unrelated#parent@commerce/domain:acme-uk"));
+        Assert.False(await HasTupleAsync("commerce/wallet:stuck#parent@commerce/domain:acme-ie"));
+        Assert.False(await HasTupleAsync("commerce/wallet:stuck#parent@commerce/domain:acme-uk"));
     }
 
     [Fact]
@@ -276,7 +276,7 @@ public sealed class ProjectorTests : PocTestBase
 
         Assert.Equal(0, outcome.Processed);
         Assert.Equal(2, outcome.Remaining);
-        Assert.False(await HasTupleAsync("wallet:first-fails#parent@domain:acme-ie")); // the move must not leapfrog the create
+        Assert.False(await HasTupleAsync("commerce/wallet:first-fails#parent@commerce/domain:acme-ie")); // the move must not leapfrog the create
     }
 
     [Fact]
@@ -302,7 +302,7 @@ public sealed class ProjectorTests : PocTestBase
         var recovered = await FlushAsync();
 
         Assert.True(recovered.FullyApplied);
-        Assert.True(await HasTupleAsync("wallet:outage#parent@domain:acme-uk"));
+        Assert.True(await HasTupleAsync("commerce/wallet:outage#parent@commerce/domain:acme-uk"));
         Assert.True((await Host.Get<ReconciliationRunner>().RunAsync(repair: false, Ct)).InSync);
     }
 
@@ -347,11 +347,11 @@ public sealed class ProjectorTests : PocTestBase
             Subscription.Create("uk-ops", "Visio", 4, "carol", Now, "carol-sub")));
         await FlushAsync();
 
-        var sub = Res("subscription", "carol-sub");
+        var sub = Res("commerce/subscription", "carol-sub");
         Assert.True(await CanAsync("carol", SubscriptionSchema.Permissions.View, sub));
         Assert.True(await CanAsync("carol", SubscriptionSchema.Permissions.ChangeQuantity, sub));
         Assert.False(await CanAsync("carol", SubscriptionSchema.Permissions.Cancel, sub));
-        Assert.False(await CanAsync("carol", SubscriptionSchema.Permissions.View, Res("subscription", "azure-plan"))); // other subscriptions stay hidden
+        Assert.False(await CanAsync("carol", SubscriptionSchema.Permissions.View, Res("commerce/subscription", "azure-plan"))); // other subscriptions stay hidden
 
         var entry = Assert.Single((await AuditAsync()), a => a.ResourceId == "carol-sub");
         Assert.Equal((GrantAction.Grant, "operator", "user", "carol", GrantStatus.Applied), (entry.Action, entry.Relation, entry.SubjectType, entry.SubjectId, entry.Status));
@@ -381,7 +381,7 @@ public sealed class ProjectorTests : PocTestBase
 
         Assert.DoesNotContain((await AuditAsync()), a => a.ResourceId == "alice-sub");
         Assert.DoesNotContain(await AllTuplesAsync(), t => t.Resource.Id == "alice-sub" && t.Relation == "operator");
-        Assert.True(await CanAsync("alice", SubscriptionSchema.Permissions.Cancel, Res("subscription", "alice-sub")));
+        Assert.True(await CanAsync("alice", SubscriptionSchema.Permissions.Cancel, Res("commerce/subscription", "alice-sub")));
     }
 
     [Fact]

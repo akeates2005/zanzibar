@@ -16,11 +16,11 @@ public sealed class MatrixOverHttpTests : ApiTestBase
     private static readonly Column[] Columns =
     [
         new("customer:acme", "view", "/api/customers/acme", "/api/customers/acme/domains", new { name = "probe" }, "create_domain"),
-        new("domain:acme-uk", "admin", "/api/domains/acme-uk", "/api/domains/acme-uk/wallets", new { name = "probe" }, "create_wallet"),
-        new("wallet:uk-ops", "spend", "/api/wallets/uk-ops", "/api/wallets/uk-ops/subscriptions", new { productName = "probe", quantity = 1 }, "create_subscription"),
-        new("subscription:m365-e3", "change_quantity", "/api/subscriptions/m365-e3", "/api/subscriptions/m365-e3/quantity", new { quantity = 3 }, "change_quantity"),
-        new("subscription:m365-e3", "cancel", "/api/subscriptions/m365-e3", "/api/subscriptions/m365-e3/cancel", new { }, "cancel"),
-        new("wallet:ie-ops", "view", "/api/wallets/ie-ops", "/api/wallets/ie-ops/subscriptions", new { productName = "probe", quantity = 1 }, "create_subscription"),
+        new("commerce/domain:acme-uk", "admin", "/api/domains/acme-uk", "/api/domains/acme-uk/wallets", new { name = "probe" }, "create_wallet"),
+        new("commerce/wallet:uk-ops", "spend", "/api/wallets/uk-ops", "/api/wallets/uk-ops/subscriptions", new { productName = "probe", quantity = 1 }, "create_subscription"),
+        new("commerce/subscription:m365-e3", "change_quantity", "/api/subscriptions/m365-e3", "/api/subscriptions/m365-e3/quantity", new { quantity = 3 }, "change_quantity"),
+        new("commerce/subscription:m365-e3", "cancel", "/api/subscriptions/m365-e3", "/api/subscriptions/m365-e3/cancel", new { }, "cancel"),
+        new("commerce/wallet:ie-ops", "view", "/api/wallets/ie-ops", "/api/wallets/ie-ops/subscriptions", new { productName = "probe", quantity = 1 }, "create_subscription"),
         new("customer:globex", "view", "/api/customers/globex", "/api/customers/globex/domains", new { name = "probe" }, "create_domain"),
     ];
 

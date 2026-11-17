@@ -185,7 +185,7 @@ public sealed class PersistenceTests : PocTestBase
     [Fact]
     public async Task Stamping_a_missing_row_is_harmless()
     {
-        await Host.Get<IAuthzTokenStore>().StampAsync(new Poc.Application.Authorization.ResourceRef("wallet", "gone"), "t", Ct);
+        await Host.Get<IAuthzTokenStore>().StampAsync(new Poc.Application.Authorization.ResourceRef("commerce/wallet", "gone"), "t", Ct);
         await Host.Get<IAuthzTokenStore>().StampAsync(new Poc.Application.Authorization.ResourceRef("platform", "main"), "t", Ct);
     }
 

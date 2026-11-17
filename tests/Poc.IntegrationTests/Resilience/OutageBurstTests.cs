@@ -36,7 +36,7 @@ public sealed class OutageBurstTests : ApiTestBase
             return true;
         }, "not every wallet became visible once the engine returned");
 
-        var children = await (await alice.GetAsync("/api/domain/acme-ie/children")).ExpectAsync(HttpStatusCode.OK);
+        var children = await (await alice.GetAsync("/api/children?type=commerce/domain&id=acme-ie")).ExpectAsync(HttpStatusCode.OK);
         var burst = children.EnumerateArray().Select(c => c.GetProperty("name").GetString()!).Where(n => n.StartsWith("Burst ", StringComparison.Ordinal)).ToList();
         Assert.Equal(20, burst.Count);
         Assert.Equal(20, burst.Distinct().Count()); // none doubled
@@ -66,7 +66,7 @@ public sealed class OutageBurstTests : ApiTestBase
             return true;
         }, "Carol never became operator of every subscription she created");
 
-        var audit = await (await (await AsAsync("alice")).GetAsync("/api/access/audit?type=subscription&id=" + created[0])).ExpectAsync(HttpStatusCode.OK);
+        var audit = await (await (await AsAsync("alice")).GetAsync("/api/access/audit?type=commerce/subscription&id=" + created[0])).ExpectAsync(HttpStatusCode.OK);
         Assert.Equal(1, audit.GetArrayLength()); // exactly one default grant, not one per flush attempt
     }
 }

@@ -29,7 +29,8 @@ public sealed partial class SchemaModel
         return new SchemaModel(types);
     }
 
-    [GeneratedRegex(@"definition\s+(?<name>\w+)\s*\{(?<body>[^}]*)\}")]
+    // A type name may carry one prefix, e.g. `commerce/wallet` (DECISIONS.md, "Team-prefixed object types").
+    [GeneratedRegex(@"definition\s+(?<name>[a-z][a-z0-9_]*(?:/[a-z][a-z0-9_]*)?)\s*\{(?<body>[^}]*)\}")]
     private static partial Regex DefinitionRegex();
 
     [GeneratedRegex(@"^\s*relation\s+(?<name>\w+)\s*:", RegexOptions.Multiline)]

@@ -17,18 +17,18 @@ test('demo step 2: Alice sees Acme and Grace is told nothing about a wallet that
   await expect(page.getByRole('link', { name: 'Acme Ltd' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Globex Corporation' })).toHaveCount(0);
 
-  await page.goto('/resources/domain/acme-uk/access');
+  await page.goto('/resources/commerce/domain/acme-uk/access');
   const inherited = page.getByTestId('inherited-grants');
   await expect(inherited.getByText('Alice Armstrong (alice)')).toBeVisible();
   await expect(inherited.getByText('Priya Patel (priya)')).toBeVisible();
 
   await switchTo(page, 'grace');
-  await page.goto('/resources/wallet/uk-ops');
+  await page.goto('/resources/commerce/wallet/uk-ops');
   await expect(page.getByTestId('not-found')).toContainText('does not exist, or you do not have access to it');
 });
 
 test('demo step 4: the nesting cycle is refused, removing a nested group takes Heidi\'s access, Bob keeps his', async ({ page }) => {
-  await openAs(page, 'heidi', '/resources/domain/acme-uk');
+  await openAs(page, 'heidi', '/resources/commerce/domain/acme-uk');
   await expect(page.getByRole('heading', { name: 'Acme UK' })).toBeVisible();
   await expect(page.getByTestId('permission-admin')).toHaveAttribute('data-held', 'true');
 
@@ -54,7 +54,7 @@ test('demo step 4: the nesting cycle is refused, removing a nested group takes H
   await expect(page.getByTestId('empty-state')).toContainText('You do not have access to anything yet');
 
   await switchTo(page, 'bob');
-  await page.goto('/resources/domain/acme-uk');
+  await page.goto('/resources/commerce/domain/acme-uk');
   await expect(page.getByTestId('permission-admin')).toHaveAttribute('data-held', 'true');
 });
 

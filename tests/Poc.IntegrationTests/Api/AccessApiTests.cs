@@ -18,7 +18,7 @@ public sealed class AccessApiTests : ApiTestBase
     [Fact]
     public async Task Direct_grants_show_who_granted_them_and_when()
     {
-        var grants = await (await (await AsAsync("alice")).GetAsync("/api/access/domain/acme-uk/grants")).ExpectAsync(HttpStatusCode.OK);
+        var grants = await (await (await AsAsync("alice")).GetAsync("/api/access/grants?type=commerce/domain&id=acme-uk")).ExpectAsync(HttpStatusCode.OK);
 
         var direct = Assert.Single(grants.GetProperty("direct").EnumerateArray());
         Assert.Equal("administrator", direct.GetProperty("relation").GetString());
@@ -32,7 +32,7 @@ public sealed class AccessApiTests : ApiTestBase
     [Fact]
     public async Task Inherited_grants_come_from_each_ancestors_administrators_and_the_platforms_support_labelled_with_their_source()
     {
-        var grants = await (await (await AsAsync("bob")).GetAsync("/api/access/wallet/uk-ops/grants")).ExpectAsync(HttpStatusCode.OK);
+        var grants = await (await (await AsAsync("bob")).GetAsync("/api/access/grants?type=commerce/wallet&id=uk-ops")).ExpectAsync(HttpStatusCode.OK);
 
         var inherited = grants.GetProperty("inherited").EnumerateArray()
             .Select(g => (g.GetProperty("sourceType").GetString()!, g.GetProperty("sourceName").GetString()!, g.GetProperty("relation").GetString()!,
@@ -41,8 +41,8 @@ public sealed class AccessApiTests : ApiTestBase
 
         Assert.Equal(
         [
+            ("commerce/domain", "Acme UK", "administrator", "admin", "UK IT"),
             ("customer", "Acme Ltd", "administrator", "admin", "Alice Armstrong"),
-            ("domain", "Acme UK", "administrator", "admin", "UK IT"),
             ("platform", "Platform", "administrator", "admin", "Priya Patel"),
             ("platform", "Platform", "support", "view", "Support team"),
         ], inherited);
@@ -53,7 +53,7 @@ public sealed class AccessApiTests : ApiTestBase
     [Fact]
     public async Task Platform_grants_have_no_inherited_section()
     {
-        var grants = await (await (await AsAsync("priya")).GetAsync("/api/access/platform/main/grants")).ExpectAsync(HttpStatusCode.OK);
+        var grants = await (await (await AsAsync("priya")).GetAsync("/api/access/grants?type=platform&id=main")).ExpectAsync(HttpStatusCode.OK);
         Assert.Equal(0, grants.GetProperty("inherited").GetArrayLength());
         Assert.Equal(["administrator", "support"], grants.GetProperty("direct").EnumerateArray().Select(g => g.GetProperty("relation").GetString()!).Order().ToArray());
     }
@@ -61,15 +61,15 @@ public sealed class AccessApiTests : ApiTestBase
     [Fact]
     public async Task Listing_grants_needs_manage_access_so_a_viewer_is_told_and_a_stranger_is_not()
     {
-        await (await (await AsAsync("erin")).GetAsync("/api/access/customer/acme/grants")).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "manage_access");
-        await (await (await AsAsync("frank")).GetAsync("/api/access/customer/acme/grants")).ExpectProblemAsync(HttpStatusCode.NotFound);
-        await (await (await AsAsync("sam")).GetAsync("/api/access/customer/acme/grants")).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "manage_access");
+        await (await (await AsAsync("erin")).GetAsync("/api/access/grants?type=customer&id=acme")).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "manage_access");
+        await (await (await AsAsync("frank")).GetAsync("/api/access/grants?type=customer&id=acme")).ExpectProblemAsync(HttpStatusCode.NotFound);
+        await (await (await AsAsync("sam")).GetAsync("/api/access/grants?type=customer&id=acme")).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "manage_access");
     }
 
     [Theory]
-    [InlineData("/api/access/group/uk-it/grants")]         // groups are managed through their own routes
-    [InlineData("/api/access/nonsense/x/grants")]
-    [InlineData("/api/access/customer/Bad%23Id/grants")]
+    [InlineData("/api/access/grants?type=group&id=uk-it")]         // groups are managed through their own routes
+    [InlineData("/api/access/grants?type=nonsense&id=x")]
+    [InlineData("/api/access/grants?type=customer&id=Bad%23Id")]
     public async Task Access_routes_for_something_that_cannot_take_grants_are_404(string url)
     {
         await (await (await AsAsync("priya")).GetAsync(url)).ExpectProblemAsync(HttpStatusCode.NotFound);
@@ -82,18 +82,18 @@ public sealed class AccessApiTests : ApiTestBase
     {
         var alice = await AsAsync("alice");
 
-        var granted = await (await alice.PutJsonAsync("/api/access/domain/acme-ie/grants", new { relation = "viewer", subject = UserSubject("erin") })).ExpectAsync(HttpStatusCode.OK);
+        var granted = await (await alice.PutJsonAsync("/api/access/grants?type=commerce/domain&id=acme-ie", new { relation = "viewer", subject = UserSubject("erin") })).ExpectAsync(HttpStatusCode.OK);
         Assert.True(granted.GetProperty("auditId").GetInt64() > 0);
-        var listed = await (await alice.GetAsync("/api/access/domain/acme-ie/grants")).JsonAsync();
+        var listed = await (await alice.GetAsync("/api/access/grants?type=commerce/domain&id=acme-ie")).JsonAsync();
         var direct = Assert.Single(listed.GetProperty("direct").EnumerateArray());
         Assert.Equal(("viewer", "erin", "alice"), (direct.GetProperty("relation").GetString(), direct.GetProperty("subject").GetProperty("id").GetString(), direct.GetProperty("grantedBy").GetString()));
         Assert.Equal(HttpStatusCode.OK, (await (await AsAsync("erin")).GetAsync("/api/domains/acme-ie")).StatusCode);
 
-        await (await alice.DeleteAsync("/api/access/domain/acme-ie/grants?relation=viewer&subjectType=user&subjectId=erin")).ExpectAsync(HttpStatusCode.OK);
-        Assert.Equal(0, (await (await alice.GetAsync("/api/access/domain/acme-ie/grants")).JsonAsync()).GetProperty("direct").GetArrayLength());
+        await (await alice.DeleteAsync("/api/access/grants?type=commerce/domain&id=acme-ie&relation=viewer&subjectType=user&subjectId=erin")).ExpectAsync(HttpStatusCode.OK);
+        Assert.Equal(0, (await (await alice.GetAsync("/api/access/grants?type=commerce/domain&id=acme-ie")).JsonAsync()).GetProperty("direct").GetArrayLength());
         Assert.Equal(HttpStatusCode.NotFound, (await (await AsAsync("erin")).GetAsync("/api/domains/acme-ie")).StatusCode);
 
-        var audit = await (await alice.GetAsync("/api/access/audit?type=domain&id=acme-ie")).ExpectAsync(HttpStatusCode.OK);
+        var audit = await (await alice.GetAsync("/api/access/audit?type=commerce/domain&id=acme-ie")).ExpectAsync(HttpStatusCode.OK);
         Assert.Equal(["Grant", "Revoke"], audit.EnumerateArray().Select(a => a.GetProperty("action").GetString()!).ToArray());
         Assert.All(audit.EnumerateArray(), a => Assert.Equal("Applied", a.GetProperty("status").GetString()));
     }
@@ -102,7 +102,7 @@ public sealed class AccessApiTests : ApiTestBase
     public async Task A_group_can_be_granted_a_role_and_its_members_gain_it()
     {
         var alice = await AsAsync("alice");
-        await (await alice.PutJsonAsync("/api/access/wallet/ie-ops/grants", new { relation = "spender", subject = GroupSubject("uk-it") })).ExpectAsync(HttpStatusCode.OK);
+        await (await alice.PutJsonAsync("/api/access/grants?type=commerce/wallet&id=ie-ops", new { relation = "spender", subject = GroupSubject("uk-it") })).ExpectAsync(HttpStatusCode.OK);
 
         foreach (var member in new[] { "bob", "heidi" }) // heidi through uk-contractors
             Assert.True((await (await (await AsAsync(member)).GetAsync("/api/wallets/ie-ops")).JsonAsync()).Permission("spend"));
@@ -119,7 +119,7 @@ public sealed class AccessApiTests : ApiTestBase
     {
         var alice = await AsAsync("alice");
 
-        await (await alice.PutJsonAsync("/api/access/customer/acme/grants", new { relation, subject = new { type = subjectType, id = subjectId } }))
+        await (await alice.PutJsonAsync("/api/access/grants?type=customer&id=acme", new { relation, subject = new { type = subjectType, id = subjectId } }))
             .ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: code);
 
         var audit = await (await alice.GetAsync("/api/access/audit?type=customer&id=acme")).JsonAsync();
@@ -130,18 +130,18 @@ public sealed class AccessApiTests : ApiTestBase
     public async Task A_grant_request_missing_fields_is_422_not_a_server_error()
     {
         var alice = await AsAsync("alice");
-        await (await alice.PutJsonAsync("/api/access/customer/acme/grants", new { })).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "missing_field");
-        await (await alice.PutJsonAsync("/api/access/customer/acme/grants", new { relation = "viewer" })).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "missing_field");
-        await (await alice.DeleteAsync("/api/access/customer/acme/grants")).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "missing_field");
+        await (await alice.PutJsonAsync("/api/access/grants?type=customer&id=acme", new { })).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "missing_field");
+        await (await alice.PutJsonAsync("/api/access/grants?type=customer&id=acme", new { relation = "viewer" })).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "missing_field");
+        await (await alice.DeleteAsync("/api/access/grants?type=customer&id=acme")).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "missing_field");
     }
 
     [Fact]
     public async Task Only_platform_admins_may_grant_a_platform_group_anywhere()
     {
         var support = GroupSubject("support-team");
-        await (await (await AsAsync("alice")).PutJsonAsync("/api/access/customer/acme/grants", new { relation = "viewer", subject = support }))
+        await (await (await AsAsync("alice")).PutJsonAsync("/api/access/grants?type=customer&id=acme", new { relation = "viewer", subject = support }))
             .ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "admin");
-        await (await (await AsAsync("priya")).PutJsonAsync("/api/access/customer/acme/grants", new { relation = "viewer", subject = support })).ExpectAsync(HttpStatusCode.OK);
+        await (await (await AsAsync("priya")).PutJsonAsync("/api/access/grants?type=customer&id=acme", new { relation = "viewer", subject = support })).ExpectAsync(HttpStatusCode.OK);
     }
 
     // ---- Effective access -----------------------------------------------------------------------------------------
@@ -151,13 +151,13 @@ public sealed class AccessApiTests : ApiTestBase
     {
         var alice = await AsAsync("alice");
 
-        var spenders = await (await alice.GetAsync("/api/access/wallet/uk-ops/effective?permission=spend")).ExpectAsync(HttpStatusCode.OK);
+        var spenders = await (await alice.GetAsync("/api/access/effective?type=commerce/wallet&id=uk-ops&permission=spend")).ExpectAsync(HttpStatusCode.OK);
         Assert.Equal(["alice", "bob", "carol", "heidi", "priya"], Ids(spenders));
 
-        var viewers = await (await alice.GetAsync("/api/access/wallet/uk-ops/effective?permission=view")).ExpectAsync(HttpStatusCode.OK);
+        var viewers = await (await alice.GetAsync("/api/access/effective?type=commerce/wallet&id=uk-ops&permission=view")).ExpectAsync(HttpStatusCode.OK);
         Assert.Equal(["alice", "bob", "carol", "heidi", "priya", "sam"], Ids(viewers)); // support can view
 
-        var cancellers = await (await alice.GetAsync("/api/access/subscription/m365-e3/effective?permission=cancel")).ExpectAsync(HttpStatusCode.OK);
+        var cancellers = await (await alice.GetAsync("/api/access/effective?type=commerce/subscription&id=m365-e3&permission=cancel")).ExpectAsync(HttpStatusCode.OK);
         Assert.Equal(["alice", "bob", "heidi", "priya"], Ids(cancellers));
         Assert.Equal("Alice Armstrong", cancellers[0].GetProperty("displayName").GetString());
     }
@@ -168,7 +168,7 @@ public sealed class AccessApiTests : ApiTestBase
         var alice = await AsAsync("alice");
         await (await alice.DeleteAsync("/api/groups/uk-it/members?type=group&memberId=uk-contractors")).ExpectAsync(HttpStatusCode.OK);
 
-        var spenders = await (await alice.GetAsync("/api/access/wallet/uk-ops/effective?permission=spend")).JsonAsync();
+        var spenders = await (await alice.GetAsync("/api/access/effective?type=commerce/wallet&id=uk-ops&permission=spend")).JsonAsync();
         Assert.DoesNotContain("heidi", Ids(spenders));
     }
 
@@ -176,8 +176,8 @@ public sealed class AccessApiTests : ApiTestBase
     public async Task Effective_access_refuses_an_unknown_or_missing_permission()
     {
         var alice = await AsAsync("alice");
-        await (await alice.GetAsync("/api/access/wallet/uk-ops/effective?permission=cancel")).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "unknown_permission"); // a subscription permission
-        await (await alice.GetAsync("/api/access/wallet/uk-ops/effective")).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "missing_field");
+        await (await alice.GetAsync("/api/access/effective?type=commerce/wallet&id=uk-ops&permission=cancel")).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "unknown_permission"); // a subscription permission
+        await (await alice.GetAsync("/api/access/effective?type=commerce/wallet&id=uk-ops")).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "missing_field");
     }
 
     // ---- Permission explorer --------------------------------------------------------------------------------------
@@ -187,16 +187,16 @@ public sealed class AccessApiTests : ApiTestBase
     {
         var alice = await AsAsync("alice");
 
-        var allowed = await (await alice.PostJsonAsync("/api/access/explain", new { userId = "heidi", permission = "spend", resourceType = "wallet", resourceId = "uk-ops" })).ExpectAsync(HttpStatusCode.OK);
+        var allowed = await (await alice.PostJsonAsync("/api/access/explain", new { userId = "heidi", permission = "spend", resourceType = "commerce/wallet", resourceId = "uk-ops" })).ExpectAsync(HttpStatusCode.OK);
         Assert.True(allowed.GetProperty("allowed").GetBoolean());
         var steps = allowed.GetProperty("trace").EnumerateArray().ToList();
         var root = steps[0];
-        Assert.Equal((0, "wallet", "uk-ops", "spend"), (root.GetProperty("depth").GetInt32(), root.GetProperty("resourceType").GetString(), root.GetProperty("resourceId").GetString(), root.GetProperty("permission").GetString()));
+        Assert.Equal((0, "commerce/wallet", "uk-ops", "spend"), (root.GetProperty("depth").GetInt32(), root.GetProperty("resourceType").GetString(), root.GetProperty("resourceId").GetString(), root.GetProperty("permission").GetString()));
         Assert.True(root.GetProperty("allowed").GetBoolean());
         Assert.Contains(steps, n => n.GetProperty("resourceType").GetString() == "group" && n.GetProperty("resourceId").GetString() == "uk-contractors");
         Assert.True(steps.Skip(1).All(n => n.GetProperty("depth").GetInt32() >= 1), "only the root is at depth 0");
 
-        var denied = await (await alice.PostJsonAsync("/api/access/explain", new { userId = "dave", permission = "spend", resourceType = "wallet", resourceId = "uk-ops" })).ExpectAsync(HttpStatusCode.OK);
+        var denied = await (await alice.PostJsonAsync("/api/access/explain", new { userId = "dave", permission = "spend", resourceType = "commerce/wallet", resourceId = "uk-ops" })).ExpectAsync(HttpStatusCode.OK);
         Assert.False(denied.GetProperty("allowed").GetBoolean());
         Assert.False(denied.GetProperty("trace").EnumerateArray().First().GetProperty("allowed").GetBoolean());
     }
@@ -206,10 +206,10 @@ public sealed class AccessApiTests : ApiTestBase
     {
         object Body(string type, string id) => new { userId = "heidi", permission = "view", resourceType = type, resourceId = id };
 
-        await (await (await AsAsync("carol")).PostJsonAsync("/api/access/explain", Body("wallet", "uk-ops"))).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "manage_access");
+        await (await (await AsAsync("carol")).PostJsonAsync("/api/access/explain", Body("commerce/wallet", "uk-ops"))).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "manage_access");
         await (await (await AsAsync("bob")).PostJsonAsync("/api/access/explain", Body("customer", "acme"))).ExpectProblemAsync(HttpStatusCode.NotFound);
-        await (await (await AsAsync("frank")).PostJsonAsync("/api/access/explain", Body("wallet", "uk-ops"))).ExpectProblemAsync(HttpStatusCode.NotFound);
-        await (await (await AsAsync("bob")).PostJsonAsync("/api/access/explain", Body("wallet", "uk-ops"))).ExpectAsync(HttpStatusCode.OK); // Bob manages access on his domain's wallets
+        await (await (await AsAsync("frank")).PostJsonAsync("/api/access/explain", Body("commerce/wallet", "uk-ops"))).ExpectProblemAsync(HttpStatusCode.NotFound);
+        await (await (await AsAsync("bob")).PostJsonAsync("/api/access/explain", Body("commerce/wallet", "uk-ops"))).ExpectAsync(HttpStatusCode.OK); // Bob manages access on his domain's wallets
     }
 
     [Fact]
@@ -217,9 +217,9 @@ public sealed class AccessApiTests : ApiTestBase
     {
         var alice = await AsAsync("alice");
         await (await alice.PostJsonAsync("/api/access/explain", new { userId = "heidi", permission = "view", resourceType = "nonsense", resourceId = "x" })).ExpectProblemAsync(HttpStatusCode.NotFound);
-        await (await alice.PostJsonAsync("/api/access/explain", new { userId = "heidi", permission = "view", resourceType = "wallet", resourceId = "A#B" })).ExpectProblemAsync(HttpStatusCode.NotFound);
-        await (await alice.PostJsonAsync("/api/access/explain", new { userId = "ghost", permission = "view", resourceType = "wallet", resourceId = "uk-ops" })).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "unknown_subject");
-        await (await alice.PostJsonAsync("/api/access/explain", new { userId = "heidi", permission = "cancel", resourceType = "wallet", resourceId = "uk-ops" })).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "unknown_permission");
+        await (await alice.PostJsonAsync("/api/access/explain", new { userId = "heidi", permission = "view", resourceType = "commerce/wallet", resourceId = "A#B" })).ExpectProblemAsync(HttpStatusCode.NotFound);
+        await (await alice.PostJsonAsync("/api/access/explain", new { userId = "ghost", permission = "view", resourceType = "commerce/wallet", resourceId = "uk-ops" })).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "unknown_subject");
+        await (await alice.PostJsonAsync("/api/access/explain", new { userId = "heidi", permission = "cancel", resourceType = "commerce/wallet", resourceId = "uk-ops" })).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "unknown_permission");
         await (await alice.PostJsonAsync("/api/access/explain", new { })).ExpectProblemAsync(HttpStatusCode.UnprocessableEntity, code: "missing_field");
     }
 
@@ -240,7 +240,7 @@ public sealed class AccessApiTests : ApiTestBase
         var bob = await AsAsync("bob");
         await (await bob.GetAsync("/api/customers/acme/groups")).ExpectProblemAsync(HttpStatusCode.NotFound); // why the picker needs its own list
 
-        var groups = await (await bob.GetAsync("/api/access/domain/acme-uk/grantable-groups")).ExpectAsync(HttpStatusCode.OK);
+        var groups = await (await bob.GetAsync("/api/access/grantable-groups?type=commerce/domain&id=acme-uk")).ExpectAsync(HttpStatusCode.OK);
 
         Assert.Equal(["finance-ap", "uk-contractors", "uk-it"], Ids(groups));
         Assert.All(groups.EnumerateArray(), g => Assert.Equal("Customer", g.GetProperty("ownerType").GetString()));
@@ -252,22 +252,22 @@ public sealed class AccessApiTests : ApiTestBase
         var alice = await AsAsync("alice");
         var priya = await AsAsync("priya");
 
-        Assert.DoesNotContain("support-team", Ids(await (await alice.GetAsync("/api/access/wallet/uk-ops/grantable-groups")).JsonAsync()));
-        var forPriya = await (await priya.GetAsync("/api/access/wallet/uk-ops/grantable-groups")).ExpectAsync(HttpStatusCode.OK);
+        Assert.DoesNotContain("support-team", Ids(await (await alice.GetAsync("/api/access/grantable-groups?type=commerce/wallet&id=uk-ops")).JsonAsync()));
+        var forPriya = await (await priya.GetAsync("/api/access/grantable-groups?type=commerce/wallet&id=uk-ops")).ExpectAsync(HttpStatusCode.OK);
         Assert.Equal(["finance-ap", "support-team", "uk-contractors", "uk-it"], Ids(forPriya));
-        Assert.Equal(["support-team"], Ids(await (await priya.GetAsync("/api/access/platform/main/grantable-groups")).ExpectAsync(HttpStatusCode.OK))); // a customer's groups cannot be granted on the platform
+        Assert.Equal(["support-team"], Ids(await (await priya.GetAsync("/api/access/grantable-groups?type=platform&id=main")).ExpectAsync(HttpStatusCode.OK))); // a customer's groups cannot be granted on the platform
 
         // Each offered group really is grantable there (the offer and the rule must agree).
         foreach (var id in Ids(forPriya))
-            await (await priya.PutJsonAsync("/api/access/wallet/uk-ops/grants", new { relation = "viewer", subject = new { type = "group", id } })).ExpectAsync(HttpStatusCode.OK);
+            await (await priya.PutJsonAsync("/api/access/grants?type=commerce/wallet&id=uk-ops", new { relation = "viewer", subject = new { type = "group", id } })).ExpectAsync(HttpStatusCode.OK);
     }
 
     [Fact]
     public async Task Another_customers_groups_are_never_offered_and_the_list_needs_manage_access()
     {
-        Assert.Equal(0, (await (await (await AsAsync("grace")).GetAsync("/api/access/wallet/globex-ops/grantable-groups")).ExpectAsync(HttpStatusCode.OK)).GetArrayLength());
-        await (await (await AsAsync("erin")).GetAsync("/api/access/customer/acme/grantable-groups")).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "manage_access");
-        await (await (await AsAsync("frank")).GetAsync("/api/access/customer/acme/grantable-groups")).ExpectProblemAsync(HttpStatusCode.NotFound);
+        Assert.Equal(0, (await (await (await AsAsync("grace")).GetAsync("/api/access/grantable-groups?type=commerce/wallet&id=globex-ops")).ExpectAsync(HttpStatusCode.OK)).GetArrayLength());
+        await (await (await AsAsync("erin")).GetAsync("/api/access/grantable-groups?type=customer&id=acme")).ExpectProblemAsync(HttpStatusCode.Forbidden, permission: "manage_access");
+        await (await (await AsAsync("frank")).GetAsync("/api/access/grantable-groups?type=customer&id=acme")).ExpectProblemAsync(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -325,7 +325,7 @@ public sealed class AccessApiTests : ApiTestBase
         var members = detail.GetProperty("members").EnumerateArray().Select(m => (m.GetProperty("subject").GetProperty("type").GetString()!, m.GetProperty("subject").GetProperty("displayName").GetString()!)).Order().ToArray();
         Assert.Equal([("group", "UK contractors"), ("user", "Bob Baker")], members);
         var grantedOn = Assert.Single(detail.GetProperty("grantedOn").EnumerateArray());
-        Assert.Equal(("domain", "acme-uk", "Acme UK", "administrator"),
+        Assert.Equal(("commerce/domain", "acme-uk", "Acme UK", "administrator"),
             (grantedOn.GetProperty("resourceType").GetString(), grantedOn.GetProperty("resourceId").GetString(), grantedOn.GetProperty("resourceName").GetString(), grantedOn.GetProperty("relation").GetString()));
 
         var contractors = await (await (await AsAsync("alice")).GetAsync("/api/groups/uk-contractors")).JsonAsync();

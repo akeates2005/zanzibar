@@ -26,9 +26,9 @@ public sealed class EventTupleMapperTests
     [Fact]
     public void Creation_events_touch_one_parent_edge_each()
     {
-        Assert.Equal(["Touch domain:acme-uk#parent@customer:acme"], Updates(EventTupleMapper.Map(new DomainCreated("acme-uk", "acme"))));
-        Assert.Equal(["Touch wallet:uk-ops#parent@domain:acme-uk"], Updates(EventTupleMapper.Map(new WalletCreated("uk-ops", "acme-uk"))));
-        Assert.Equal(["Touch subscription:m365#parent@wallet:uk-ops"], Updates(EventTupleMapper.Map(new SubscriptionCreated("m365", "uk-ops", "carol"))));
+        Assert.Equal(["Touch commerce/domain:acme-uk#parent@customer:acme"], Updates(EventTupleMapper.Map(new DomainCreated("acme-uk", "acme"))));
+        Assert.Equal(["Touch commerce/wallet:uk-ops#parent@commerce/domain:acme-uk"], Updates(EventTupleMapper.Map(new WalletCreated("uk-ops", "acme-uk"))));
+        Assert.Equal(["Touch commerce/subscription:m365#parent@commerce/wallet:uk-ops"], Updates(EventTupleMapper.Map(new SubscriptionCreated("m365", "uk-ops", "carol"))));
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class EventTupleMapperTests
     public void WalletMoved_deletes_the_old_parent_and_touches_the_new_one_in_a_single_write()
     {
         var plan = EventTupleMapper.Map(new WalletMoved("uk-rnd", "acme-uk", "acme-ie"));
-        Assert.Equal(["Delete wallet:uk-rnd#parent@domain:acme-uk", "Touch wallet:uk-rnd#parent@domain:acme-ie"], Updates(plan));
+        Assert.Equal(["Delete commerce/wallet:uk-rnd#parent@commerce/domain:acme-uk", "Touch commerce/wallet:uk-rnd#parent@commerce/domain:acme-ie"], Updates(plan));
         Assert.Empty(plan.Deletes);
     }
 
@@ -61,9 +61,9 @@ public sealed class EventTupleMapperTests
     public static TheoryData<IDomainEvent, string, string> BusinessDeletes => new()
     {
         { new CustomerDeleted("acme"), "customer", "acme" },
-        { new DomainDeleted("acme-uk"), "domain", "acme-uk" },
-        { new WalletDeleted("uk-ops"), "wallet", "uk-ops" },
-        { new SubscriptionDeleted("m365"), "subscription", "m365" },
+        { new DomainDeleted("acme-uk"), "commerce/domain", "acme-uk" },
+        { new WalletDeleted("uk-ops"), "commerce/wallet", "uk-ops" },
+        { new SubscriptionDeleted("m365"), "commerce/subscription", "m365" },
     };
 
     [Fact]
@@ -78,9 +78,9 @@ public sealed class EventTupleMapperTests
             "platform:*#*@group:uk-it#member",
             "group:*#*@group:uk-it#member",
             "customer:*#*@group:uk-it#member",
-            "domain:*#*@group:uk-it#member",
-            "wallet:*#*@group:uk-it#member",
-            "subscription:*#*@group:uk-it#member",
+            "commerce/domain:*#*@group:uk-it#member",
+            "commerce/wallet:*#*@group:uk-it#member",
+            "commerce/subscription:*#*@group:uk-it#member",
         ], Deletes(plan));
     }
 

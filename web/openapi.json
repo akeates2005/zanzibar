@@ -188,7 +188,7 @@
         }
       }
     },
-    "/api/{parentType}/{id}/children": {
+    "/api/children": {
       "get": {
         "tags": [
           "Browse"
@@ -196,17 +196,15 @@
         "operationId": "GetChildren",
         "parameters": [
           {
-            "name": "parentType",
-            "in": "path",
-            "required": true,
+            "name": "type",
+            "in": "query",
             "schema": {
               "type": "string"
             }
           },
           {
             "name": "id",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -2439,7 +2437,7 @@
         }
       }
     },
-    "/api/access/{type}/{id}/grants": {
+    "/api/access/grants": {
       "get": {
         "tags": [
           "Access"
@@ -2448,16 +2446,14 @@
         "parameters": [
           {
             "name": "type",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
           },
           {
             "name": "id",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -2554,16 +2550,14 @@
         "parameters": [
           {
             "name": "type",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
           },
           {
             "name": "id",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -2670,16 +2664,14 @@
         "parameters": [
           {
             "name": "type",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
           },
           {
             "name": "id",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -2790,7 +2782,7 @@
         }
       }
     },
-    "/api/access/{type}/{id}/grantable-groups": {
+    "/api/access/grantable-groups": {
       "get": {
         "tags": [
           "Access"
@@ -2799,16 +2791,14 @@
         "parameters": [
           {
             "name": "type",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
           },
           {
             "name": "id",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -2901,7 +2891,7 @@
         }
       }
     },
-    "/api/access/{type}/{id}/effective": {
+    "/api/access/effective": {
       "get": {
         "tags": [
           "Access"
@@ -2910,16 +2900,14 @@
         "parameters": [
           {
             "name": "type",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
           },
           {
             "name": "id",
-            "in": "path",
-            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }

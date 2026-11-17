@@ -1,6 +1,6 @@
 import { Anchor, Box, Breadcrumbs, Card, Group, List, Paper, SimpleGrid, Stack, Tabs, Text, Title } from '@mantine/core';
 import { useState, type ReactNode } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import {
   cancelSubscription,
@@ -15,9 +15,10 @@ import {
   useCommand,
 } from '../../api/commands';
 import { useChildren, useObject, useTree } from '../../api/queries';
-import { isObjectType, type BreadcrumbDto, type ObjectDto, type ObjectType } from '../../api/types';
+import { isObjectType, OBJECT_TYPES, type BreadcrumbDto, type ObjectDto, type ObjectType } from '../../api/types';
 import { ActionButton, EmptyState, NotFoundPanel, PageTitle, PermissionList, QueryBoundary } from '../../components/common';
 import { formatDateTime, formatMoney, typeLabel } from '../../lib/format';
+import { parseResourcePath, type ResourcePath } from '../../lib/resourcePath';
 import { moveTargets } from '../../lib/tree';
 import { AccessTab } from '../access/AccessTab';
 import { PlatformPage } from '../platform/PlatformPage';
@@ -25,16 +26,18 @@ import { AmountModal, ConfirmModal, MoveWalletModal, QuantityModal, Subscription
 
 type Dialog = 'rename' | 'create' | 'topup' | 'move' | 'subscription' | 'quantity' | 'delete' | null;
 
-const CHILD_LABEL: Partial<Record<ObjectType, string>> = { customer: 'Domains', domain: 'Wallets', wallet: 'Subscriptions' };
+const CHILD_LABEL: Partial<Record<ObjectType, string>> = { customer: 'Domains', 'commerce/domain': 'Wallets', 'commerce/wallet': 'Subscriptions' };
 
 export const linkTo = (type: string, id: string): string => `/resources/${type}/${id}`;
 
-/** Routes `/resources/:type/:id` and `/resources/:type/:id/access`. */
+/** Route `/resources/*`: `{type}/{id}` or `{type}/{id}/access`, where the type may itself contain a slash. */
 export function ResourceDetail() {
-  const { type, id } = useParams();
-  if (type === 'platform') return <PlatformPage />;
-  if (!isObjectType(type) || !id) return <NotFoundPanel />;
-  return <ObjectDetail key={`${type}:${id}`} type={type} id={id} />;
+  const { '*': rest = '' } = useParams();
+  const path = parseResourcePath(rest, ['platform', ...OBJECT_TYPES]);
+  if (path === null) return <NotFoundPanel />;
+  if (path.type === 'platform') return <PlatformPage />;
+  if (!isObjectType(path.type)) return <NotFoundPanel />;
+  return <ObjectDetail key={`${path.type}:${path.id}`} type={path.type} id={path.id} tab={path.tab} />;
 }
 
 function Crumbs({ ancestors }: { ancestors: readonly BreadcrumbDto[] }) {
@@ -67,13 +70,13 @@ function fields(object: ObjectDto, type: ObjectType): [string, ReactNode][] {
   ];
   switch (type) {
     case 'customer':
-    case 'domain':
+    case 'commerce/domain':
       return [['Name', (object as { name: string }).name], ...common];
-    case 'wallet': {
+    case 'commerce/wallet': {
       const w = object as { name: string; balance: number };
       return [['Name', w.name], ['Balance', <span key="b" data-testid="wallet-balance">{formatMoney(w.balance)}</span>], ...common];
     }
-    case 'subscription': {
+    case 'commerce/subscription': {
       const s = object as { productName: string; quantity: number; status: string };
       return [
         ['Product', s.productName],
@@ -89,19 +92,18 @@ function nameOf(object: ObjectDto): string {
   return 'productName' in object ? object.productName : object.name;
 }
 
-function ObjectDetail({ type, id }: { type: ObjectType; id: string }) {
+function ObjectDetail({ type, id, tab }: { type: ObjectType; id: string; tab: ResourcePath['tab'] }) {
   const query = useObject(type, id);
   return (
-    <QueryBoundary query={query} notFoundWhat={`This ${type}`}>
-      {(object) => <ObjectView type={type} id={id} object={object} />}
+    <QueryBoundary query={query} notFoundWhat={`This ${typeLabel(type).toLowerCase()}`}>
+      {(object) => <ObjectView type={type} id={id} object={object} tab={tab} />}
     </QueryBoundary>
   );
 }
 
-function ObjectView({ type, id, object }: { type: ObjectType; id: string; object: ObjectDto }) {
-  const location = useLocation();
+function ObjectView({ type, id, object, tab }: { type: ObjectType; id: string; object: ObjectDto; tab: ResourcePath['tab'] }) {
   const navigate = useNavigate();
-  const onAccessTab = location.pathname.endsWith('/access');
+  const onAccessTab = tab === 'access';
   const canManageAccess = object.permissions.manage_access === true;
   const name = nameOf(object);
 
@@ -230,17 +232,17 @@ function Actions({ type, id, object }: { type: ObjectType; id: string; object: O
   return (
     <>
       <Group gap="xs" role="toolbar" aria-label="Actions">
-        {type !== 'subscription' ? <ActionButton variant="default" label="Rename" permission="edit" permissions={permissions} onClick={() => { setDialog('rename'); }} /> : null}
+        {type !== 'commerce/subscription' ? <ActionButton variant="default" label="Rename" permission="edit" permissions={permissions} onClick={() => { setDialog('rename'); }} /> : null}
         {type === 'customer' ? <ActionButton label="Add domain" permission="create_domain" permissions={permissions} onClick={() => { setDialog('create'); }} /> : null}
-        {type === 'domain' ? <ActionButton label="Add wallet" permission="create_wallet" permissions={permissions} onClick={() => { setDialog('create'); }} /> : null}
-        {type === 'wallet' ? (
+        {type === 'commerce/domain' ? <ActionButton label="Add wallet" permission="create_wallet" permissions={permissions} onClick={() => { setDialog('create'); }} /> : null}
+        {type === 'commerce/wallet' ? (
           <>
             <ActionButton label="Top up" permission="top_up" permissions={permissions} onClick={() => { setDialog('topup'); }} />
             <ActionButton variant="default" label="Move to another domain" permission="move" permissions={permissions} onClick={() => { setDialog('move'); }} />
             <ActionButton label="Add subscription" permission="create_subscription" permissions={permissions} onClick={() => { setDialog('subscription'); }} />
           </>
         ) : null}
-        {type === 'subscription' ? (
+        {type === 'commerce/subscription' ? (
           <>
             <ActionButton label="Change quantity" permission="change_quantity" permissions={permissions} blockedReason={cancelledReason} onClick={() => { setDialog('quantity'); }} />
             <ActionButton variant="default" label="Cancel subscription" permission="cancel" permissions={permissions} blockedReason={cancelledReason} onClick={() => { cancel.mutate({ id }); }} />
@@ -251,7 +253,7 @@ function Actions({ type, id, object }: { type: ObjectType; id: string; object: O
 
       <TextPromptModal opened={dialog === 'rename'} onClose={close} busy={rename.isPending} title={`Rename ${typeLabel(type).toLowerCase()}`} label="New name" initial={name} submitLabel="Rename" onSubmit={(value) => { rename.mutate({ type, id, name: value }); }} />
       <TextPromptModal opened={dialog === 'create' && type === 'customer'} onClose={close} busy={addDomain.isPending} title="Add domain" label="Domain name" submitLabel="Add domain" onSubmit={(value) => { addDomain.mutate({ customerId: id, name: value }); }} />
-      <TextPromptModal opened={dialog === 'create' && type === 'domain'} onClose={close} busy={addWallet.isPending} title="Add wallet" label="Wallet name" submitLabel="Add wallet" onSubmit={(value) => { addWallet.mutate({ domainId: id, name: value }); }} />
+      <TextPromptModal opened={dialog === 'create' && type === 'commerce/domain'} onClose={close} busy={addWallet.isPending} title="Add wallet" label="Wallet name" submitLabel="Add wallet" onSubmit={(value) => { addWallet.mutate({ domainId: id, name: value }); }} />
       <AmountModal opened={dialog === 'topup'} onClose={close} busy={topUp.isPending} onSubmit={(amount) => { topUp.mutate({ id, amount }); }} />
       <MoveWalletModal opened={dialog === 'move'} onClose={close} busy={move.isPending} targets={moveTargets(tree.data ?? [], object.ancestors, walletDomainId)} onSubmit={(targetDomainId) => { move.mutate({ id, targetDomainId }); }} />
       <SubscriptionModal opened={dialog === 'subscription'} onClose={close} busy={addSubscription.isPending} onSubmit={(productName, quantity) => { addSubscription.mutate({ walletId: id, productName, quantity }); }} />

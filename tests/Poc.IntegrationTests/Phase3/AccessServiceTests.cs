@@ -44,15 +44,15 @@ public sealed class AccessServiceTests : PocTestBase
     [Fact]
     public async Task A_grant_takes_effect_on_the_next_check_and_is_audited_with_the_actor_and_zed_token()
     {
-        Assert.False(await CanAsync("erin", DomainSchema.Permissions.View, Res("domain", "acme-uk")));
+        Assert.False(await CanAsync("erin", DomainSchema.Permissions.View, Res("commerce/domain", "acme-uk")));
 
-        var result = await AsAsync(a => a.GrantAsync(Alice, Grant("domain", "acme-uk", DomainSchema.Relations.Viewer, SubjectRef.User("erin")), Ct));
+        var result = await AsAsync(a => a.GrantAsync(Alice, Grant("commerce/domain", "acme-uk", DomainSchema.Relations.Viewer, SubjectRef.User("erin")), Ct));
 
-        Assert.True(await CanAsync("erin", DomainSchema.Permissions.View, Res("domain", "acme-uk")));
-        Assert.False(await CanAsync("erin", WalletSchema.Permissions.View, Res("wallet", "uk-ops"))); // viewer does not flow down
+        Assert.True(await CanAsync("erin", DomainSchema.Permissions.View, Res("commerce/domain", "acme-uk")));
+        Assert.False(await CanAsync("erin", WalletSchema.Permissions.View, Res("commerce/wallet", "uk-ops"))); // viewer does not flow down
         var entry = (await AuditAsync()).Last();
         Assert.Equal(result.AuditId, entry.Id);
-        Assert.Equal((GrantAction.Grant, GrantStatus.Applied, "alice", "domain", "acme-uk", "viewer", "user", "erin"),
+        Assert.Equal((GrantAction.Grant, GrantStatus.Applied, "alice", "commerce/domain", "acme-uk", "viewer", "user", "erin"),
             (entry.Action, entry.Status, entry.ActorUserId, entry.ResourceType, entry.ResourceId, entry.Relation, entry.SubjectType, entry.SubjectId));
         Assert.Equal(result.ZedToken, entry.ZedToken);
     }
@@ -68,12 +68,12 @@ public sealed class AccessServiceTests : PocTestBase
     public async Task Revoking_an_operator_grant_hides_the_subscription_on_the_next_request()
     {
         // PRD scenario: Alice revokes Dave's operator grant; Dave's next request for m365-e3 is a 404 (no view).
-        Assert.True(await CanAsync("dave", SubscriptionSchema.Permissions.View, Res("subscription", "m365-e3")));
+        Assert.True(await CanAsync("dave", SubscriptionSchema.Permissions.View, Res("commerce/subscription", "m365-e3")));
 
-        await AsAsync(a => a.RevokeAsync(Alice, Grant("subscription", "m365-e3", SubscriptionSchema.Relations.Operator, SubjectRef.User("dave")), Ct));
+        await AsAsync(a => a.RevokeAsync(Alice, Grant("commerce/subscription", "m365-e3", SubscriptionSchema.Relations.Operator, SubjectRef.User("dave")), Ct));
 
-        Assert.False(await CanAsync("dave", SubscriptionSchema.Permissions.View, Res("subscription", "m365-e3")));
-        Assert.False(await CanAsync("dave", SubscriptionSchema.Permissions.ChangeQuantity, Res("subscription", "m365-e3")));
+        Assert.False(await CanAsync("dave", SubscriptionSchema.Permissions.View, Res("commerce/subscription", "m365-e3")));
+        Assert.False(await CanAsync("dave", SubscriptionSchema.Permissions.ChangeQuantity, Res("commerce/subscription", "m365-e3")));
         var entry = (await AuditAsync()).Last();
         Assert.Equal((GrantAction.Revoke, GrantStatus.Applied), (entry.Action, entry.Status));
     }
@@ -81,24 +81,24 @@ public sealed class AccessServiceTests : PocTestBase
     [Fact]
     public async Task Revoking_removes_only_the_named_grant()
     {
-        await AsAsync(a => a.GrantAsync(Alice, Grant("wallet", "uk-ops", WalletSchema.Relations.Viewer, SubjectRef.User("dave")), Ct));
-        await AsAsync(a => a.RevokeAsync(Alice, Grant("wallet", "uk-ops", WalletSchema.Relations.Viewer, SubjectRef.User("dave")), Ct));
+        await AsAsync(a => a.GrantAsync(Alice, Grant("commerce/wallet", "uk-ops", WalletSchema.Relations.Viewer, SubjectRef.User("dave")), Ct));
+        await AsAsync(a => a.RevokeAsync(Alice, Grant("commerce/wallet", "uk-ops", WalletSchema.Relations.Viewer, SubjectRef.User("dave")), Ct));
 
-        Assert.False(await CanAsync("dave", WalletSchema.Permissions.View, Res("wallet", "uk-ops")));
-        Assert.True(await CanAsync("dave", SubscriptionSchema.Permissions.ChangeQuantity, Res("subscription", "m365-e3"))); // the other grant survives
+        Assert.False(await CanAsync("dave", WalletSchema.Permissions.View, Res("commerce/wallet", "uk-ops")));
+        Assert.True(await CanAsync("dave", SubscriptionSchema.Permissions.ChangeQuantity, Res("commerce/subscription", "m365-e3"))); // the other grant survives
     }
 
     [Fact]
     public async Task Revoking_a_group_grant_matches_the_group_subject_exactly_and_leaves_user_grants_alone()
     {
-        await AsAsync(a => a.GrantAsync(Alice, Grant("domain", "acme-ie", DomainSchema.Relations.Viewer, SubjectRef.User("bob")), Ct));
-        await AsAsync(a => a.GrantAsync(Alice, Grant("domain", "acme-ie", DomainSchema.Relations.Viewer, SubjectRef.GroupMembers("uk-it")), Ct));
-        Assert.True(await CanAsync("heidi", DomainSchema.Permissions.View, Res("domain", "acme-ie")));
+        await AsAsync(a => a.GrantAsync(Alice, Grant("commerce/domain", "acme-ie", DomainSchema.Relations.Viewer, SubjectRef.User("bob")), Ct));
+        await AsAsync(a => a.GrantAsync(Alice, Grant("commerce/domain", "acme-ie", DomainSchema.Relations.Viewer, SubjectRef.GroupMembers("uk-it")), Ct));
+        Assert.True(await CanAsync("heidi", DomainSchema.Permissions.View, Res("commerce/domain", "acme-ie")));
 
-        await AsAsync(a => a.RevokeAsync(Alice, Grant("domain", "acme-ie", DomainSchema.Relations.Viewer, SubjectRef.GroupMembers("uk-it")), Ct));
+        await AsAsync(a => a.RevokeAsync(Alice, Grant("commerce/domain", "acme-ie", DomainSchema.Relations.Viewer, SubjectRef.GroupMembers("uk-it")), Ct));
 
-        Assert.False(await CanAsync("heidi", DomainSchema.Permissions.View, Res("domain", "acme-ie")));
-        Assert.True(await CanAsync("bob", DomainSchema.Permissions.View, Res("domain", "acme-ie"))); // Bob's direct grant remains
+        Assert.False(await CanAsync("heidi", DomainSchema.Permissions.View, Res("commerce/domain", "acme-ie")));
+        Assert.True(await CanAsync("bob", DomainSchema.Permissions.View, Res("commerce/domain", "acme-ie"))); // Bob's direct grant remains
     }
 
     [Fact]
@@ -133,20 +133,20 @@ public sealed class AccessServiceTests : PocTestBase
         await AssertNothingWrittenAsync<PermissionDeniedException>(() => AsAsync(a => a.GrantAsync(
             Actor.ForUser("erin"), Grant("customer", "acme", CustomerSchema.Relations.Viewer, SubjectRef.User("frank")), Ct)));
         await AssertNothingWrittenAsync<PermissionDeniedException>(() => AsAsync(a => a.GrantAsync(
-            Actor.ForUser("carol"), Grant("wallet", "uk-ops", WalletSchema.Relations.Viewer, SubjectRef.User("frank")), Ct)));
+            Actor.ForUser("carol"), Grant("commerce/wallet", "uk-ops", WalletSchema.Relations.Viewer, SubjectRef.User("frank")), Ct)));
     }
 
     [Fact]
     public async Task A_domain_admin_may_grant_below_their_domain_but_not_above_it()
     {
         var bob = Actor.ForUser("bob");
-        await AsAsync(a => a.GrantAsync(bob, Grant("wallet", "uk-ops", WalletSchema.Relations.Viewer, SubjectRef.User("frank")), Ct)); // inherited admin
-        Assert.True(await CanAsync("frank", WalletSchema.Permissions.View, Res("wallet", "uk-ops")));
+        await AsAsync(a => a.GrantAsync(bob, Grant("commerce/wallet", "uk-ops", WalletSchema.Relations.Viewer, SubjectRef.User("frank")), Ct)); // inherited admin
+        Assert.True(await CanAsync("frank", WalletSchema.Permissions.View, Res("commerce/wallet", "uk-ops")));
 
         await AssertNothingWrittenAsync<PermissionDeniedException>(() => AsAsync(a => a.GrantAsync(
             bob, Grant("customer", "acme", CustomerSchema.Relations.Viewer, SubjectRef.User("frank")), Ct)));
         await AssertNothingWrittenAsync<PermissionDeniedException>(() => AsAsync(a => a.GrantAsync(
-            bob, Grant("wallet", "ie-ops", WalletSchema.Relations.Viewer, SubjectRef.User("frank")), Ct))); // a sibling domain
+            bob, Grant("commerce/wallet", "ie-ops", WalletSchema.Relations.Viewer, SubjectRef.User("frank")), Ct))); // a sibling domain
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public sealed class AccessServiceTests : PocTestBase
     {
         // PRD scenario: Grace tries to grant an Acme group on a Globex wallet; 422, nothing written.
         var ex = await AssertNothingWrittenAsync<RuleViolationException>(() => AsAsync(a => a.GrantAsync(
-            Actor.ForUser("grace"), Grant("wallet", "globex-ops", WalletSchema.Relations.Viewer, SubjectRef.GroupMembers("uk-it")), Ct)));
+            Actor.ForUser("grace"), Grant("commerce/wallet", "globex-ops", WalletSchema.Relations.Viewer, SubjectRef.GroupMembers("uk-it")), Ct)));
 
         Assert.Equal(GrantRules.Codes.GroupOwnerMismatch, ex.Code);
     }
@@ -182,10 +182,10 @@ public sealed class AccessServiceTests : PocTestBase
     {
         var members = SubjectRef.GroupMembers("finance-ap");
         await AsAsync(a => a.GrantAsync(Alice, Grant("customer", "acme", CustomerSchema.Relations.Viewer, members), Ct));
-        await AsAsync(a => a.GrantAsync(Alice, Grant("domain", "acme-ie", DomainSchema.Relations.Viewer, members), Ct));
-        await AsAsync(a => a.GrantAsync(Alice, Grant("wallet", "ie-ops", WalletSchema.Relations.Spender, members), Ct));
-        await AsAsync(a => a.GrantAsync(Alice, Grant("subscription", "m365-bp", SubscriptionSchema.Relations.Operator, members), Ct));
-        Assert.True(await CanAsync("carol", SubscriptionSchema.Permissions.ChangeQuantity, Res("subscription", "m365-bp")));
+        await AsAsync(a => a.GrantAsync(Alice, Grant("commerce/domain", "acme-ie", DomainSchema.Relations.Viewer, members), Ct));
+        await AsAsync(a => a.GrantAsync(Alice, Grant("commerce/wallet", "ie-ops", WalletSchema.Relations.Spender, members), Ct));
+        await AsAsync(a => a.GrantAsync(Alice, Grant("commerce/subscription", "m365-bp", SubscriptionSchema.Relations.Operator, members), Ct));
+        Assert.True(await CanAsync("carol", SubscriptionSchema.Permissions.ChangeQuantity, Res("commerce/subscription", "m365-bp")));
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public sealed class AccessServiceTests : PocTestBase
             Alice, "uk-contractors", SubjectRef.GroupMembers("uk-it"), Ct)));
 
         Assert.Equal(GrantRules.Codes.GroupCycle, ex.Code);
-        Assert.True(await CanAsync("heidi", DomainSchema.Permissions.Admin, Res("domain", "acme-uk"))); // and nothing broke
+        Assert.True(await CanAsync("heidi", DomainSchema.Permissions.Admin, Res("commerce/domain", "acme-uk"))); // and nothing broke
     }
 
     [Fact]
@@ -255,7 +255,7 @@ public sealed class AccessServiceTests : PocTestBase
     public async Task Nesting_without_a_cycle_works_and_grants_flow_through()
     {
         await AsAsync(a => a.AddGroupMemberAsync(Alice, "finance-ap", SubjectRef.GroupMembers("uk-contractors"), Ct));
-        Assert.True(await CanAsync("heidi", WalletSchema.Permissions.Spend, Res("wallet", "uk-ops"))); // heidi: uk-contractors -> finance-ap -> wallet
+        Assert.True(await CanAsync("heidi", WalletSchema.Permissions.Spend, Res("commerce/wallet", "uk-ops"))); // heidi: uk-contractors -> finance-ap -> wallet
     }
 
     [Fact]
@@ -277,10 +277,10 @@ public sealed class AccessServiceTests : PocTestBase
         await AsAsync(a => a.RemoveGroupMemberAsync(Alice, "uk-it", SubjectRef.GroupMembers("uk-contractors"), Ct));
 
         foreach (var permission in new[] { "view", "admin", "create_wallet" })
-            Assert.False(await CanAsync("heidi", permission, Res("domain", "acme-uk")), $"heidi {permission}");
-        Assert.False(await CanAsync("heidi", WalletSchema.Permissions.Spend, Res("wallet", "uk-ops")));
-        Assert.True(await CanAsync("bob", DomainSchema.Permissions.Admin, Res("domain", "acme-uk")));
-        Assert.True(await CanAsync("bob", WalletSchema.Permissions.Spend, Res("wallet", "uk-ops")));
+            Assert.False(await CanAsync("heidi", permission, Res("commerce/domain", "acme-uk")), $"heidi {permission}");
+        Assert.False(await CanAsync("heidi", WalletSchema.Permissions.Spend, Res("commerce/wallet", "uk-ops")));
+        Assert.True(await CanAsync("bob", DomainSchema.Permissions.Admin, Res("commerce/domain", "acme-uk")));
+        Assert.True(await CanAsync("bob", WalletSchema.Permissions.Spend, Res("commerce/wallet", "uk-ops")));
     }
 
     // ---- Membership permissions ----------------------------------------------------------------------------------
@@ -296,7 +296,7 @@ public sealed class AccessServiceTests : PocTestBase
 
         await AsAsync(a => a.AddGroupMemberAsync(Alice, "uk-it", SubjectRef.User("frank"), Ct));
         await AsAsync(a => a.AddGroupMemberAsync(Priya, "support-team", SubjectRef.User("frank"), Ct));
-        Assert.True(await CanAsync("frank", DomainSchema.Permissions.Admin, Res("domain", "acme-uk")));
+        Assert.True(await CanAsync("frank", DomainSchema.Permissions.Admin, Res("commerce/domain", "acme-uk")));
         Assert.True(await CanAsync("frank", CustomerSchema.Permissions.View, Res("customer", "globex")));
     }
 
@@ -305,7 +305,7 @@ public sealed class AccessServiceTests : PocTestBase
     [Theory]
     [InlineData("customer", "acme", "parent", "user", "frank", null, GrantRules.Codes.UnknownRelation)]            // structural relation
     [InlineData("customer", "acme", "operator", "user", "frank", null, GrantRules.Codes.UnknownRelation)]          // wrong object type
-    [InlineData("wallet", "uk-ops", "view", "user", "frank", null, GrantRules.Codes.UnknownRelation)]              // a permission
+    [InlineData("commerce/wallet", "uk-ops", "view", "user", "frank", null, GrantRules.Codes.UnknownRelation)]              // a permission
     [InlineData("customer", "acme", "viewer", "user", "no-such-user", null, GrantRules.Codes.UnknownSubject)]      // not in the directory
     [InlineData("customer", "acme", "viewer", "group", "no-such-group", "member", GrantRules.Codes.UnknownSubject)]
     [InlineData("customer", "acme", "viewer", "customer", "acme", null, GrantRules.Codes.InvalidSubject)]         // wrong subject type
@@ -323,14 +323,14 @@ public sealed class AccessServiceTests : PocTestBase
     public async Task Granting_on_an_object_that_does_not_exist_is_not_found_for_the_system_actor()
     {
         await Assert.ThrowsAsync<NotFoundException>(() => AsAsync(a => a.GrantAsync(
-            Actor.System, Grant("wallet", "no-such-wallet", WalletSchema.Relations.Viewer, SubjectRef.User("frank")), Ct)));
+            Actor.System, Grant("commerce/wallet", "no-such-wallet", WalletSchema.Relations.Viewer, SubjectRef.User("frank")), Ct)));
     }
 
     [Fact]
     public async Task Granting_on_an_unknown_object_as_a_user_is_forbidden_not_not_found_so_existence_is_not_leaked()
     {
         await Assert.ThrowsAsync<PermissionDeniedException>(() => AsAsync(a => a.GrantAsync(
-            Alice, Grant("wallet", "no-such-wallet", WalletSchema.Relations.Viewer, SubjectRef.User("frank")), Ct)));
+            Alice, Grant("commerce/wallet", "no-such-wallet", WalletSchema.Relations.Viewer, SubjectRef.User("frank")), Ct)));
     }
 
     // ---- Engine failure ------------------------------------------------------------------------------------------
@@ -341,12 +341,12 @@ public sealed class AccessServiceTests : PocTestBase
         Host.Faults.Down = true;
 
         await Assert.ThrowsAsync<AuthorizationUnavailableException>(() => AsAsync(a => a.GrantAsync(
-            Alice, Grant("domain", "acme-ie", DomainSchema.Relations.Viewer, SubjectRef.User("erin")), Ct)));
+            Alice, Grant("commerce/domain", "acme-ie", DomainSchema.Relations.Viewer, SubjectRef.User("erin")), Ct)));
 
         var entry = (await AuditAsync()).Last();
         Assert.Equal((GrantStatus.Failed, "erin", null), (entry.Status, entry.SubjectId, entry.ZedToken));
         Host.Faults.Down = false;
-        Assert.False(await CanAsync("erin", DomainSchema.Permissions.View, Res("domain", "acme-ie"))); // no partial grant
+        Assert.False(await CanAsync("erin", DomainSchema.Permissions.View, Res("commerce/domain", "acme-ie"))); // no partial grant
     }
 
     [Fact]
@@ -354,11 +354,11 @@ public sealed class AccessServiceTests : PocTestBase
     {
         Host.Faults.Down = true;
         await Assert.ThrowsAsync<AuthorizationUnavailableException>(() => AsAsync(a => a.RevokeAsync(
-            Alice, Grant("subscription", "m365-e3", SubscriptionSchema.Relations.Operator, SubjectRef.User("dave")), Ct)));
+            Alice, Grant("commerce/subscription", "m365-e3", SubscriptionSchema.Relations.Operator, SubjectRef.User("dave")), Ct)));
         Host.Faults.Down = false;
 
         Assert.Equal((GrantAction.Revoke, GrantStatus.Failed), ((await AuditAsync()).Last().Action, (await AuditAsync()).Last().Status));
-        Assert.True(await CanAsync("dave", SubscriptionSchema.Permissions.ChangeQuantity, Res("subscription", "m365-e3")));
+        Assert.True(await CanAsync("dave", SubscriptionSchema.Permissions.ChangeQuantity, Res("commerce/subscription", "m365-e3")));
     }
 
     [Fact]

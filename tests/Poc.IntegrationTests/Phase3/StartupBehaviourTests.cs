@@ -106,7 +106,7 @@ public sealed class StartupBehaviourTests : PocTestBase
     {
         // A restart wipes SpiceDB's memory. Simulate it by deleting every tuple, then run start-up again.
         var store = Host.Get<IRelationshipStore>();
-        foreach (var type in new[] { "platform", "group", "customer", "domain", "wallet", "subscription" })
+        foreach (var type in new[] { "platform", "group", "customer", "commerce/domain", "commerce/wallet", "commerce/subscription" })
             await store.DeleteAsync(new RelationshipFilter(type), Ct);
         Assert.False(await CanAsync("priya", "view", Res("customer", "acme")));
 

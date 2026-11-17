@@ -65,11 +65,33 @@ public sealed class NativeSpiceDbHost : ISpiceDbHost
         }
     }
 
-    /// <summary>Starts the process and waits until its gRPC port accepts connections.</summary>
-    public static async Task<NativeSpiceDbHost> StartAsync(int? fixedPort = null, string? fixedKey = null)
+    /// <summary>Starts the process and waits until it reports serving and its gRPC port accepts connections.</summary>
+    public static Task<NativeSpiceDbHost> StartAsync(int? fixedPort = null, string? fixedKey = null) =>
+        StartAsync(fixedPort, fixedKey, FreePort);
+
+    /// <summary>
+    /// <see cref="FreePort"/> releases its port before the engine binds it, so in a parallel run another process can take
+    /// it in between (seen once on 2026-11-17: "bind: address already in use"). A chosen port that turns out to be taken is
+    /// retried on a new one; a port the caller fixed is not, because the caller asked for exactly that port.
+    /// </summary>
+    internal static async Task<NativeSpiceDbHost> StartAsync(int? fixedPort, string? fixedKey, Func<int> pickPort)
+    {
+        const int Attempts = 3;
+        for (var attempt = 1; ; attempt++)
+        {
+            var host = await StartOnceAsync(fixedPort ?? pickPort(), fixedKey, retryOnPortClash: fixedPort is null && attempt < Attempts)
+                .ConfigureAwait(false);
+            if (host is not null) return host;
+        }
+    }
+
+    /// <summary>The engine logs this only after it has bound its gRPC port (observed on v1.57.1).</summary>
+    private const string ServingMessage = "grpc server started serving";
+
+    /// <returns>The host, or <c>null</c> when the port was taken and <paramref name="retryOnPortClash"/> allows a retry.</returns>
+    private static async Task<NativeSpiceDbHost?> StartOnceAsync(int port, string? fixedKey, bool retryOnPortClash)
     {
         var binary = FindBinary();
-        var port = fixedPort ?? FreePort();
         var key = fixedKey ?? "it-" + Guid.NewGuid().ToString("N");
 
         var info = new ProcessStartInfo(binary)
@@ -98,7 +120,21 @@ public sealed class NativeSpiceDbHost : ISpiceDbHost
         while (DateTime.UtcNow < deadline)
         {
             if (process.HasExited)
-                throw new InvalidOperationException($"spicedb exited during start-up (code {process.ExitCode}):\n{host.Log}");
+            {
+                await process.WaitForExitAsync().ConfigureAwait(false); // drains the redirected output into the log
+                var (code, log) = (process.ExitCode, host.Log);
+                await host.DisposeAsync().ConfigureAwait(false);
+                if (retryOnPortClash && log.Contains("address already in use", StringComparison.Ordinal)) return null;
+                throw new InvalidOperationException($"spicedb exited during start-up (code {code}):\n{log}");
+            }
+
+            // A connection alone could reach whatever process took the port; the log line proves this engine bound it.
+            if (!host.Log.Contains(ServingMessage, StringComparison.Ordinal))
+            {
+                await Task.Delay(100).ConfigureAwait(false);
+                continue;
+            }
+
             try
             {
                 using var probe = new TcpClient();

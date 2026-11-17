@@ -29,8 +29,35 @@ def deny(reason: str) -> None:
 
 
 def segments(cmd: str):
-    """Split a command line into simple commands on ; && || | and newlines (good enough for these rules)."""
-    return [s.strip() for s in re.split(r"\|\||&&|[;|\n]", cmd) if s.strip()]
+    """Split a command line into simple commands on ; & | and newlines that are not inside quotes.
+
+    Quote-aware so a quoted regex alternation (`pgrep -af '^a|^b'`) stays one command. An unbalanced quote (say an
+    apostrophe in a heredoc body) swallows the rest, which can only mean fewer checks, never a false refusal."""
+    parts, current, quote, i = [], [], None, 0
+    while i < len(cmd):
+        ch = cmd[i]
+        if quote:
+            if ch == "\\" and quote == '"' and i + 1 < len(cmd):
+                current.append(cmd[i:i + 2])
+                i += 2
+                continue
+            if ch == quote:
+                quote = None
+        elif ch in "'\"":
+            quote = ch
+        elif ch == "\\" and i + 1 < len(cmd):
+            current.append(cmd[i:i + 2])
+            i += 2
+            continue
+        elif ch in ";&|\n":
+            parts.append("".join(current))
+            current = []
+            i += 1
+            continue
+        current.append(ch)
+        i += 1
+    parts.append("".join(current))
+    return [p.strip() for p in parts if p.strip()]
 
 
 def words(seg: str):

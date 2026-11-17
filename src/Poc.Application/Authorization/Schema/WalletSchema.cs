@@ -2,7 +2,7 @@ namespace Poc.Application.Authorization.Schema;
 
 public static class WalletSchema
 {
-    public const string Type = "wallet";
+    public const string Type = "commerce/wallet";
 
     public static class Relations
     {

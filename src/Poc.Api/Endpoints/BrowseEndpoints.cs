@@ -27,10 +27,11 @@ public static class BrowseEndpoints
             .Produces<List<TreeNodeDto>>();
 
         // Children of a platform, customer, domain or wallet: view on the parent, then only children the caller can view.
-        api.MapGet("/{parentType}/{id}/children", async (string parentType, string id, ObjectReadService read, CurrentUser user, CancellationToken ct) =>
-            Results.Ok((await read.ChildrenAsync(user.Actor, new ResourceRef(parentType, id), ct)).Select(c => new ObjectSummaryDto(c.Type, c.Id, c.Name)).ToList()))
+        // The parent is named in the query string because an object type may contain a slash (DECISIONS.md).
+        api.MapGet("/children", async (string? type, string? id, ObjectReadService read, CurrentUser user, CancellationToken ct) =>
+            Results.Ok((await read.ChildrenAsync(user.Actor, new ResourceRef(type!, id!), ct)).Select(c => new ObjectSummaryDto(c.Type, c.Id, c.Name)).ToList()))
             .WithName("GetChildren").WithTags("Browse")
-            .RequiresOn(PlatformSchema.Permissions.View, ResourceLocator.RouteTyped("parentType"))
+            .RequiresOn(PlatformSchema.Permissions.View, ResourceLocator.QueryTyped("type", "id"))
             .Produces<List<ObjectSummaryDto>>();
 
         api.MapGet("/users", async (string? query, IDirectoryQueries directory, CancellationToken ct) =>
