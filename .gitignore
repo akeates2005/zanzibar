@@ -20,3 +20,7 @@ playwright-report/
 .DS_Store
 # local scratch
 *.log
+# verify.sh's record of the last passing working tree (read by the commit gate)
+.verify/
+# personal Claude Code overrides
+.claude/settings.local.json

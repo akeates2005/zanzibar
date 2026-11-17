@@ -142,4 +142,6 @@ fi
 pass "no test processes left running"
 
 summary
+# Record which working tree passed; the commit gate in .claude/hooks/bash-guard.py compares against it.
+mkdir -p .verify && scripts/worktree-fingerprint.sh > .verify/last-pass
 printf '\nverify.sh: OK (%d passed, %d skipped)\n' "${#PASSED[@]}" "${#SKIPPED[@]}"
