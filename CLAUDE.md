@@ -1,8 +1,15 @@
 # Zanzibar authorisation PoC
 
+- If notes, plans or instructions disagree with the app, follow the app and point out the mismatch in your reply. The
+  exception is a plan marked "in progress": that's where the app is going, so follow the plan. When you finish a plan,
+  change its status to done.
+- Leave notes, TODOs and plans you weren't asked about alone. If you notice one that looks relevant, list it at the end of
+  your reply instead of acting on it.
+
 A .NET 9 modular monolith with SpiceDB, a stub OIDC issuer and a React client. `PRD.md` is the specification,
-`DECISIONS.md` records every choice and deviation (D1 to D7), and `LESSONS.md` is the retrospective. Read those files for
-detail; this file holds the rules that must hold in every session. A SessionStart hook prints git state, open deviations,
+`DECISIONS.md` records every choice and deviation (D1 to D8), and `LESSONS.md` is the retrospective. Read those files for
+detail; this file holds the rules that must hold in every session. **`NEXT-STEPS.md` is the current plan**: what to build
+next, in order, with each item's status (Decided / Proposed / Open / In progress / Done). A SessionStart hook prints git state, open deviations,
 whether `verify.sh` has passed on the current tree, and any leftover processes or ports.
 
 ## Decision rights (scoped override of the global CLAUDE.md)
