@@ -66,18 +66,29 @@ public sealed class ResourceLocatorTests
     }
 
     [Theory]
-    [InlineData("Bad_Upper")]
     [InlineData("a#member")]
     [InlineData("a:b")]
     [InlineData("a@b")]
     [InlineData("*")]
     [InlineData("")]
-    [InlineData("-leading")]
     [InlineData("a b")]
-    public void A_malformed_id_cannot_exist_so_it_never_resolves(string id)
+    public void An_id_the_engine_refuses_cannot_exist_so_it_never_resolves(string id)
     {
         Assert.Null(ResourceLocator.Route("customer").Resolve(Request(new() { ["id"] = id }), Model));
         Assert.Null(ResourceLocator.QueryTyped("type", "id").Resolve(Request(query: $"?type=customer&id={Uri.EscapeDataString(id)}"), Model));
+    }
+
+    [Theory]
+    [InlineData("Bad_Upper")]
+    [InlineData("-leading")]
+    [InlineData("PCL|2026/0001+x=")]
+    public void A_type_named_in_the_request_takes_any_id_the_engine_accepts_but_this_apps_routes_do_not(string id)
+    {
+        // The query-string routes serve every team's types, so they follow the engine's id rule; a fixed-type route is
+        // this application's own type, whose ids follow EntityId.
+        Assert.Equal(new ResourceRef("customer", id),
+            ResourceLocator.QueryTyped("type", "id").Resolve(Request(query: $"?type=customer&id={Uri.EscapeDataString(id)}"), Model));
+        Assert.Null(ResourceLocator.Route("customer").Resolve(Request(new() { ["id"] = id }), Model));
     }
 
     [Fact]

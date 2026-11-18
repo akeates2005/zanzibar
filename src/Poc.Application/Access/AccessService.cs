@@ -62,9 +62,8 @@ public sealed class AccessService(
             var group = await directory.FindGroupAsync(grant.Subject.Id, ct).ConfigureAwait(false)
                 ?? throw new RuleViolationException(GrantRules.Codes.UnknownSubject, $"Group '{grant.Subject.Id}' does not exist.");
             GrantRules.RequireGroupInScope(group, placement.RootCustomerId);
-            // Platform groups may be granted anywhere, and only by a platform administrator (rule 1).
-            if (group.OwnerType == GroupOwnerType.Platform)
-                await RequireAsync(actor, PlatformSchema.Permissions.Admin, PlatformSchema.Main, ct).ConfigureAwait(false);
+            if (GrantRules.RequiresPlatformAdministrator(group.OwnerType))
+                await PlatformAdministrator.RequireAsync(authorizer, actor, ct).ConfigureAwait(false);
         }
         else if (action == GrantAction.Grant && !await directory.UserExistsAsync(grant.Subject.Id, ct).ConfigureAwait(false))
         {

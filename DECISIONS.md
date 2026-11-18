@@ -386,3 +386,92 @@ unpaused and done here in part.
 - **Still to do in steps 3 and 4:**
   - the platform-admin condition is still written twice (`AccessService`, `AccessQueryService.GrantableGroupsAsync`);
   - ids are still checked with `EntityId.Validate`.
+
+## Steps 3 and 4 finished: one platform-admin rule, and the engine's id rule for any team's type (2026-11-18)
+
+**What changed**
+- **The platform-admin condition is stated once.** `GrantRules.RequiresPlatformAdministrator` says which groups need one,
+  and `GrantRules.IsGroupGrantableBy` combines it with the scope rule. `PlatformAdministrator` is the only place that
+  asks the engine (`admin` on `platform:main`; the system actor counts as one). The grant command and the group picker
+  both use them. The picker now always loads platform groups and lets the rule filter them.
+- **Ids follow the engine's rule where the type can be any team's:** the query-string locator (`ResourceLocator.QueryTyped`,
+  used by every `/api/access/*` route and `/api/children`) and the resource named in the explain body. The new
+  `EngineObjectId` holds the rule. This app's fixed-type routes and its domain keep `EntityId`'s stricter rule.
+
+**Decided under delegated design authority**
+- **Two id rules, not one.** `EntityId` is stricter than the engine on purpose (its comment), and this app makes the ids
+  of its own types, so it keeps that rule. Other teams' ids are not this app's to restrict: a central service that
+  refused ids the engine accepts would make other teams' objects unmanageable.
+- **`*` is refused** as a resource id, as the engine refuses it.
+
+**Evidence: what SpiceDB v1.57.1 accepts as a resource id** (observed through the HTTP gateway, so the engine and not
+zed's parser decided; zed rejects many of these strings client-side before sending them)
+- **Accepted** for write and check: `A|b=c+d/e_f-g`, `UPPER`, `/lead`, `-lead`, `_`, `=`, and 1024 characters.
+- **Refused:**
+  - 1025 characters ("must be at most 1024 bytes");
+  - `*` ("alphanumeric value is required");
+  - `a.b`, `a:b`, `a#b`, `a@b`, `a b`, `é`, `a%2Fb`, and the empty string (regex mismatch).
+- This matches `ObjectReference.object_id` in https://github.com/authzed/api/blob/main/authzed/api/v1/core.proto
+  (`^(([a-zA-Z0-9/_|\-=+]{1,})|\*)$`, `max_bytes: 1024`). That is the main branch, not a tag pinned to v1.57.1, which is
+  why the engine was tested directly.
+
+**Proven**
+- **`EngineObjectIdTests`:** every observed case, both ways.
+- **`ResourceLocatorTests`:** ids the engine accepts but `EntityId` refuses resolve on the query locator and not on a
+  fixed-type route. Ids the engine refuses resolve on neither.
+- **`NewTeamTypeTests.Another_teams_id_needs_only_to_satisfy_the_engines_id_rule`:** a parcel with id `PCL|2026/0001+x=`
+  works through the Access endpoint, grant, effective access and explain. An id with `:` gets 404.
+- **Mutation-checked:**
+  - the picker ignoring the admin flag (caught by `GroupScopeAgreementTests`);
+  - the command never requiring a platform administrator (caught by the agreement test and
+    `Rule1_a_platform_group_can_be_granted_anywhere_but_only_by_a_platform_administrator`);
+  - the query locator using `EntityId` (caught by the locator and parcel tests);
+  - explain refusing an engine-only id (caught by the parcel test);
+  - the length limit one too high;
+  - the regex ending in `$` instead of `\z`. A .NET regex ending in `$` also matches before a trailing newline, and the
+    test caught it.
+
+**Changed test**
+- `ResourceLocatorTests.A_malformed_id_cannot_exist_so_it_never_resolves` asserted that the query locator refuses
+  `Bad_Upper` and `-leading`. The engine accepts both, so that theory is split into ids the engine refuses (neither
+  locator resolves them) and ids only the engine accepts (only the query locator resolves them).
+
+**Not verified**
+- **No browser test** opens the Access page for an id with `/`, `|`, `+` or `=`. The client builds that link with
+  `encodeURIComponent` (`web/src/lib/resourcePath.ts:17`), but no test sends such an id through the router.
+- **Subject ids are unchanged.** User and group ids in a grant body are not format-checked. They must be present
+  (`Results2.Require`), and a grant needs the user or group to exist in this app's database (`AccessService`).
+
+**A third harness race, found under load**
+- **How it showed up:**
+  - The changed classes passed 3 times in a row. Then the whole suite ran alongside a second copy, and one test failed
+    after 1 ms (`GroupScopeAgreementTests`, priya). Its message was filtered out of the log, so its cause is inferred,
+    not observed.
+  - Two more paired runs passed.
+  - Three suites at once, three times, gave 2 failures in 9 runs (`SystemApiTests`, two different tests). Both were
+    `address already in use` from the stub issuer's `StartAsync` in `ApiHost`.
+- **The cause** is the one fixed for the engine on 2026-11-17. `FreePort` releases the port before the issuer binds it,
+  and the issuer never got the retry. It cannot bind port 0 instead, because its own URL goes into the tokens before it
+  starts.
+- **The fix:** `ApiHost.StartIssuerAsync` retries a taken port on a new one (3 attempts), as `NativeSpiceDbHost` does.
+- **Proven:**
+  - `ApiHostIssuerPortTests` takes the first port on purpose, and asserts that the issuer moved and still answers discovery.
+  - Mutation-checked: with the retry disabled, that test fails with the same error seen under load.
+- The other `FreePort()` uses never bind the port; they are addresses meant to have nothing listening.
+- **After the fix:** three suites at once, three times, 9 runs. No port failures. 8 of 9 runs passed all 396 tests; the
+  ninth had the open flake below.
+
+**Open: a negative outbox lag under load (recorded, not fixed; Andrew chose this on 2026-11-18)**
+- **Seen once,** in 1 of those 9 runs:
+  - test: `SystemApiTests.Health_shows_outbox_lag_while_authorisation_is_pending`;
+  - assertion: `outboxLagSeconds >= 0` (`SystemApiTests.cs:185`).
+- **The lag is "now" minus the time the outbox row was written, and both come from the system clock.**
+  - The row is stamped with `TimeProvider.System` (`PocDbContext.cs:121`; registered in
+    `InfrastructureServiceCollectionExtensions.cs:30`).
+  - `/health` subtracts it from `DateTimeOffset.UtcNow` (`SystemEndpoints.cs:38`).
+  - So a negative lag means the wall clock went backwards between the write and the read.
+- **Likely cause, not proven:** this WSL2 machine's clock steps backwards. journald logged "Time jumped backwards" ten
+  times since boot, the last at about 19:26, but the failed run ended at 19:40 and no jump was tied to it.
+- **Options left open:**
+  - clamp the reported lag at 0 and read "now" from the same `TimeProvider`;
+  - or log both timestamps when the lag is negative and reproduce under load.

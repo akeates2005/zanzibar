@@ -110,6 +110,28 @@ public sealed class NewTeamTypeTests : ApiTestBase
     }
 
     [Fact]
+    public async Task Another_teams_id_needs_only_to_satisfy_the_engines_id_rule()
+    {
+        // Upper case, '|', '/', '+' and '=' are outside this application's id rule but inside the engine's.
+        const string id = "PCL|2026/0001+x=";
+        await Host.Services.GetRequiredService<IRelationshipStore>().WriteAsync(
+            [RelationshipUpdate.Touch(new Relationship(new ResourceRef(Parcel, id), "parent", new SubjectRef("customer", "acme")))], Ct);
+        var alice = await AsAsync("alice");
+        var q = Q(Uri.EscapeDataString(id));
+
+        var page = await (await alice.GetAsync($"/api/access/object?{q}")).ExpectAsync(HttpStatusCode.OK);
+        Assert.Equal(id, page.GetProperty("name").GetString());
+        await (await alice.PutJsonAsync($"/api/access/grants?{q}", new { relation = "handler", subject = new { type = "user", id = "dave" } })).ExpectAsync(HttpStatusCode.OK);
+        var holders = await (await alice.GetAsync($"/api/access/effective?{q}&permission=view")).ExpectAsync(HttpStatusCode.OK);
+        Assert.Contains("dave", holders.EnumerateArray().Select(h => h.GetProperty("id").GetString()));
+        var explained = await (await alice.PostJsonAsync("/api/access/explain", new { resourceType = Parcel, resourceId = id, userId = "dave", permission = "view" })).ExpectAsync(HttpStatusCode.OK);
+        Assert.True(explained.GetProperty("allowed").GetBoolean());
+
+        // An id the engine refuses cannot exist: 404 without asking the engine.
+        await (await alice.GetAsync($"/api/access/object?{Q(Uri.EscapeDataString("p1:x"))}")).ExpectProblemAsync(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
     public async Task An_object_with_no_parent_tuple_does_not_exist()
     {
         var priya = await AsAsync("priya");

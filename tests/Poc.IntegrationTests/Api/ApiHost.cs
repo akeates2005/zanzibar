@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -75,14 +76,35 @@ public sealed class ApiHost : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Starts the stub issuer on a port from <paramref name="pickPort"/>. The issuer must know its own URL before it
+    /// starts (tokens name it), so it cannot bind port 0 and read the port back. A picked port is released before the
+    /// issuer binds it, so in a parallel run another process can take it in between (seen 2026-11-18 under three
+    /// concurrent suites: "address already in use"). As for the engine, a taken port is retried on a new one.
+    /// </summary>
+    internal static async Task<(WebApplication Issuer, TokenFactory Tokens, string Url)> StartIssuerAsync(string? publicIssuer, Func<int> pickPort)
+    {
+        const int Attempts = 3;
+        for (var attempt = 1; ; attempt++)
+        {
+            var url = $"http://127.0.0.1:{pickPort()}";
+            var issuer = DevIssuerApp.Build(
+                ["--environment=Development", $"--urls={url}", $"--Issuer:Issuer={publicIssuer ?? url}", "--Issuer:Audience=poc-api", "--Logging:LogLevel:Default=Warning"], out var tokens);
+            try
+            {
+                await issuer.StartAsync();
+                return (issuer, tokens, url);
+            }
+            catch (IOException e) when (e.InnerException is AddressInUseException && attempt < Attempts)
+            {
+                await issuer.DisposeAsync();
+            }
+        }
+    }
+
     private static async Task<ApiHost> StartCoreAsync(NativeSpiceDbHost engine, Action<Dictionary<string, string?>>? configure, string? publicIssuer, string? webRoot)
     {
-
-        var issuerPort = NativeSpiceDbHost.FreePort();
-        var issuerUrl = $"http://127.0.0.1:{issuerPort}";
-        var issuer = DevIssuerApp.Build(
-            ["--environment=Development", $"--urls={issuerUrl}", $"--Issuer:Issuer={publicIssuer ?? issuerUrl}", "--Issuer:Audience=poc-api", "--Logging:LogLevel:Default=Warning"], out var tokens);
-        await issuer.StartAsync();
+        var (issuer, tokens, issuerUrl) = await StartIssuerAsync(publicIssuer, NativeSpiceDbHost.FreePort);
 
         var settings = new Dictionary<string, string?>
         {

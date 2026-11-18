@@ -39,11 +39,13 @@ public sealed record ResourceLocator(string? FixedType, string? TypeKey, string?
         if (type is null || (FixedType is null && !model.IsResourceType(type))) return null;
 
         var id = FixedId ?? (IdKey is null ? null : Read(IdKey));
-        // A malformed id cannot exist, so it is "not found" without bothering the engine.
-        return id is not null && IsValidId(id) ? new ResourceRef(type, id) : null;
+        // A malformed id cannot exist, so it is "not found" without bothering the engine. A type named in the request may
+        // be any team's, so its id follows the engine's rule; a fixed type is this application's, so it follows ours.
+        var valid = id is not null && (FixedType is null ? EngineObjectId.IsValid(id) : IsApplicationId(id));
+        return valid ? new ResourceRef(type, id!) : null;
     }
 
-    private static bool IsValidId(string id)
+    private static bool IsApplicationId(string id)
     {
         try
         {

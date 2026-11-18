@@ -57,7 +57,8 @@ public static class AccessEndpoints
         {
             var type = Results2.Require(body.ResourceType, "resourceType");
             var id = Results2.Require(body.ResourceId, "resourceId");
-            if (!model.Current.IsResourceType(type) || !IdOk(id)) throw new NotFoundException($"{type}:{id}");
+            // Any team's type, so the engine's id rule, as for the query-string routes (ResourceLocator).
+            if (!model.Current.IsResourceType(type) || !EngineObjectId.IsValid(id)) throw new NotFoundException($"{type}:{id}");
 
             var resource = new ResourceRef(type, id);
             await guard.RequireAsync(user.Actor, PlatformSchema.Permissions.ManageAccess, resource, ct);
@@ -86,19 +87,6 @@ public static class AccessEndpoints
             _ => throw new RuleViolationException(GrantRules.Codes.InvalidSubject, "The subject must be a user or a group."),
         };
         return new GrantTarget(new ResourceRef(type, id), Results2.Require(relation, "relation"), subjectRef);
-    }
-
-    private static bool IdOk(string id)
-    {
-        try
-        {
-            Poc.Domain.Common.EntityId.Validate(id);
-            return true;
-        }
-        catch (Poc.Domain.Common.DomainRuleException)
-        {
-            return false;
-        }
     }
 
     /// <summary>Pre-order, so a client can render the tree by indenting each step by its depth.</summary>

@@ -56,6 +56,17 @@ public static class GrantRules
     public static bool IsGroupInScope(GroupOwnerType ownerType, string ownerId, string? objectRootCustomerId) =>
         ownerType == GroupOwnerType.Platform || (objectRootCustomerId is not null && objectRootCustomerId == ownerId);
 
+    /// <summary>Rule 1, platform half: only a platform administrator may grant a platform group (anywhere).</summary>
+    public static bool RequiresPlatformAdministrator(GroupOwnerType ownerType) => ownerType == GroupOwnerType.Platform;
+
+    /// <summary>
+    /// Whether this caller may grant this group on an object under <paramref name="objectRootCustomerId"/>: in scope, and
+    /// a platform administrator where the group needs one. The group picker filters through this.
+    /// </summary>
+    public static bool IsGroupGrantableBy(GroupOwnerType ownerType, string ownerId, string? objectRootCustomerId, bool callerIsPlatformAdministrator) =>
+        IsGroupInScope(ownerType, ownerId, objectRootCustomerId)
+        && (!RequiresPlatformAdministrator(ownerType) || callerIsPlatformAdministrator);
+
     /// <summary>Rule 2 (same owner), plus the trivial self-nesting case that is also a cycle.</summary>
     public static void RequireNestable(Group container, Group child)
     {

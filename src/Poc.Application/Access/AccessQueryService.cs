@@ -89,15 +89,15 @@ public sealed class AccessQueryService(
     {
         // The same engine walk the grant command uses, so the picker and the command cannot disagree on the root customer.
         var rootCustomerId = (await hierarchy.PlaceAsync(resource, ct).ConfigureAwait(false))?.RootCustomerId;
+        var isPlatformAdministrator = await PlatformAdministrator.IsAsync(authorizer, actor, ct).ConfigureAwait(false);
         var candidates = new List<GroupSummary>();
         if (rootCustomerId is not null)
             candidates.AddRange(await directory.AllGroupsOwnedByAsync(GroupOwnerType.Customer, rootCustomerId, ct).ConfigureAwait(false));
+        candidates.AddRange(await directory.AllGroupsOwnedByAsync(GroupOwnerType.Platform, PlatformSchema.MainId, ct).ConfigureAwait(false));
 
-        if (await authorizer.CheckAsync(actor.Subject, PlatformSchema.Permissions.Admin, PlatformSchema.Main, ct).ConfigureAwait(false))
-            candidates.AddRange(await directory.AllGroupsOwnedByAsync(GroupOwnerType.Platform, PlatformSchema.MainId, ct).ConfigureAwait(false));
-
+        // The candidates are a superset; the rule decides, so the picker and the grant command cannot disagree.
         return candidates
-            .Where(g => GrantRules.IsGroupInScope(g.OwnerType, g.OwnerId, rootCustomerId))
+            .Where(g => GrantRules.IsGroupGrantableBy(g.OwnerType, g.OwnerId, rootCustomerId, isPlatformAdministrator))
             .OrderBy(g => g.Name, StringComparer.Ordinal).ToList();
     }
 

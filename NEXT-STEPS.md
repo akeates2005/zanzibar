@@ -64,7 +64,7 @@ Each of these is its own increment, ending green:
   record them as deviations.
 - **Needs step 1** to prove anything that touches Postgres.
 
-### 3. Read types, roles and id rules from the deployed schema: In progress (agreed 2026-11-18; D8 open items)
+### 3. Read types, roles and id rules from the deployed schema: Done (2026-11-18; see DECISIONS.md, "Steps 3 and 4 finished")
 
 Today three things are hard-coded for this one app:
 - the known object types: `ResourceLocator.NamedTypes` (`src/Poc.Api/Security/AccessRequirement.cs:21`);
@@ -82,7 +82,7 @@ A central service would need every team's release to change and redeploy it.
 - **Done when:** adding a type with grantable roles to `schema.zed` makes it appear in the API and the Access tab with no
   C# change, and a test proves it.
 
-### 4. Remove the group-scope duplication: In progress (unpaused 2026-11-18 to meet step 3's Done-when; engine walk, single scope rule and two-way test done, platform-admin duplication left)
+### 4. Remove the group-scope duplication: Done (2026-11-18; engine walk, single scope rule, two-way test, single platform-admin rule)
 
 On 2026-11-15 Andrew paused this with "let's wait". The duplication:
 - the object's root customer is computed twice: `DescribeAsync` (`EfPorts.cs:61`) and `AncestorsAsync` (`EfQueries.cs:84`);
