@@ -36,6 +36,11 @@ being*. Where a lesson has a longer story, it points there.
   next layer kept every failure small. Big-bang test runs produced walls of output that hid the one real failure.
 - **Re-run the whole suite several times after finding one flaky test.** One flake means look for others. We ran it five
   times, then twice concurrently to halve the CPU each copy gets. That is cheap and it is how you find timing-dependent tests.
+- **Two concurrent copies is not always enough load (2026-11-18).** A failure seen once with two copies did not come back
+  in two more paired runs. Three copies at once, three times, gave 2 failures in 9 runs and showed the cause. If a flake
+  will not reproduce, add load before concluding it was a one-off.
+- **Write the docs before the final `verify.sh`, not after.** The recorded pass covers every changed file, Markdown
+  included. Only an all-Markdown commit skips the gate, so a `DECISIONS.md` edit after the run means running it again.
 
 ## 2. Testing: how tests lied to us
 
@@ -92,6 +97,16 @@ being*. Where a lesson has a longer story, it points there.
 - **xunit does not call `DisposeAsync` when `InitializeAsync` throws.** A half-started host leaked a SpiceDB process. Clean up
   inside the failing start-up path, keep a registry of live child processes that a process-exit hook kills, and make the gate
   fail if any survive. (We proved the exit hook matters: without it one engine survives.)
+- **When you fix a race, find every copy of its pattern.** On 2026-11-17 the engine got a retry for "pick a free port,
+  release it, bind it later". The stub issuer in `ApiHost` used the same pattern and was missed. Three concurrent suites
+  then failed 2 runs in 9 with `address already in use`. After fixing one instance, search for the pattern (here
+  `FreePort()`) and decide for each use whether it can race. Uses that never bind cannot.
+- **A test that fails in about 1 ms failed in setup, not in its body.** xunit charges `InitializeAsync` to the test. A
+  1 ms failure of a test that makes hundreds of HTTP calls points at host start-up, so read the stack before suspecting
+  the code under test.
+- **This WSL2 machine's clock steps backwards.** `dmesg` shows journald logging "Time jumped backwards" about every half
+  hour. Any test that subtracts two wall-clock readings can see a negative interval. That is the likely cause of the open
+  outbox-lag flake (`DECISIONS.md`, 2026-11-18). Prefer a monotonic clock or an injected `TimeProvider` for durations.
 - **Wait for an observable effect, never sleep.** `EventuallyAsync` with a clear failure message made every timing test
   deterministic. The few fixed delays that remain are for "nothing should happen in this window" assertions.
 - **Fake what fails the way production fails.** A fault-injecting store that can lose a response *after* a successful write,
@@ -119,6 +134,20 @@ being*. Where a lesson has a longer story, it points there.
   Long runs (stress, clean-clone verify) go in `run_in_background` or under `Monitor`, and you wait for the notification.
 - **Noisy children flood the context.** SpiceDB's request log buried the one real error in a Playwright run. Silence stdout of
   helper processes (`stdout: 'ignore'`), keep stderr for the one that must explain itself, and filter output to failures.
+- **Filter what you read, not what you keep.** A concurrent run piped through `grep 'Failed '` showed which test failed
+  but threw away its error message. The flake then would not reproduce, so its cause is still only inferred. For repeated
+  or load runs, write each run's full output to a file, then grep the files.
+- **Do not build while a background test run is using `bin/`.** The `--no-build` runs are executing those assemblies.
+  Wait for the notification before the next `dotnet build`.
+- **zed parses relationship strings itself.** `zed relationship touch 'type:a.b' ...` fails with "invalid relationship
+  string" before anything is sent, so it says nothing about what the engine accepts. To observe the engine's own
+  validation, call the API: the HTTP gateway (`--http-enabled`) with JSON, or the .NET client. A schema sent as JSON needs
+  real newlines: `definition x { relation r: user }` on one line is a parse error.
+- **In .NET, a regex ending in `$` also matches before a trailing newline.** Anchor validators with `\z`. This was found by
+  mutating `\z` to `$` in `EngineObjectId` and watching an `"acme\n"` test fail. `EntityId` still ends in `$`; its
+  behaviour with that input is not yet tested.
+- **The session hook's "no pass recorded" is normal right after a commit.** The recorded pass includes `HEAD`, so any
+  commit makes it stale even on a clean tree. It does not mean the last commit skipped the gate.
 - **Strict analyzers (warnings as errors) are a feature.** They rejected a vulnerable package, unreachable code in mutations,
   an unsupported target-framework combination, missing `static`, and a missing `IDisposable` on a type that owns a semaphore.
   Fix the cause; do not suppress. We turned off exactly one rule (underscores in test names), scoped to `tests/`.
@@ -201,6 +230,9 @@ being*. Where a lesson has a longer story, it points there.
 2. New behaviour has a test that fails when the behaviour is removed (mutation-check it).
 3. Run the suite three to five times, once under load; fix anything intermittent now.
 4. No leftover processes (`pgrep` anchored, by PID) and no stray ports.
-5. `git clone . /tmp/x && cd /tmp/x && ./verify.sh` is green.
+5. `git clone . /tmp/x && cd /tmp/x && ./verify.sh` is green. To test uncommitted work from a clean clone, apply it in
+   the clone: `git diff HEAD --binary > /tmp/x.patch && (cd /tmp/x && git apply /tmp/x.patch)`, copy the untracked files from
+   `git ls-files --others --exclude-standard`, then check that `git status` in the clone lists the files you expect. This
+   runs on the same fixed ports as `verify.sh`, so never run both at once.
 6. `DECISIONS.md` has every deviation and every unverified claim; the report states them next to the results.
 7. Commit with the `verify.sh` summary in the message.

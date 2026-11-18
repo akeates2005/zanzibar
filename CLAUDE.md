@@ -58,6 +58,9 @@ Still stop and ask (with `AskUserQuestion` and a recommendation) for:
   `Poc.Api` and `Poc.DevIssuer`, not `dotnet`.
 - `rm -rf` only on `"${VAR:?}"` or a literal project path.
 - Filter long output to failures. Silence the stdout of helper processes (SpiceDB's request log buries the real error).
+  For repeated or load runs, save each run's full output to a file and grep the files: a filtered pipe loses the message.
+- Never `dotnet build` while a background test run is using `bin/`.
+- Anchor validation regexes with `\z`, not `$` (in .NET, `$` also matches before a trailing newline).
 - Fix analyzer errors at the cause; never suppress. These recurred: CA1861 (constant array argument: use a
   `static readonly` field), CA1716 (a name that is a keyword: `error`, `Public`), CA1710/CA1711 (`Collection` suffix
   rules), CA1822 (make it `static`), CA1826 (index, not `First()`), CA1847 (`Contains(char)`), CA1707 (underscores are
@@ -69,7 +72,8 @@ Still stop and ask (with `AskUserQuestion` and a recommendation) for:
   Mutations must compile: CS0162 rejects `return;` before code, so use a condition the compiler can't fold.
 - Assert invariants by name, never counts. Wait for an observable effect (`EventuallyAsync`), never sleep.
 - Statics are shared across parallel test hosts (`ActivitySource`, loggers): key lookups on something unique per test.
-- After one flaky test, run the suite 3 to 5 times plus once concurrently.
+- After one flaky test, run the suite 3 to 5 times plus once concurrently. If it will not reproduce, run three copies at
+  once. When you fix a race, find and fix every copy of its pattern.
 
 ## Closing a phase or a change (LESSONS.md section 11)
 
@@ -78,7 +82,8 @@ Still stop and ask (with `AskUserQuestion` and a recommendation) for:
 3. Clean clone, run in the background: `git clone . "${D:?}" && (cd "$D" && ./verify.sh)` with `D` set to a fresh
    scratch directory.
 4. No leftover processes or ports (the SessionStart hook output shows the check).
-5. `DECISIONS.md` updated; the report says what was not verified.
+5. `DECISIONS.md` updated; the report says what was not verified. Write the docs before the final `verify.sh`: the
+   recorded pass covers Markdown too, so a later doc edit means running it again.
 6. Commit with the `verify.sh` summary in the message. The commit hook refuses any non-Markdown commit unless
    `verify.sh` passed on exactly this working tree (it records `.verify/last-pass`). The clean-clone step is not enforced
    by a hook; it is your responsibility.
