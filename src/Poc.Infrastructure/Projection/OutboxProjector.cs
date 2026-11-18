@@ -16,6 +16,7 @@ namespace Poc.Infrastructure.Projection;
 public sealed partial class OutboxProjector(
     IServiceScopeFactory scopes,
     IRelationshipStore tuples,
+    Poc.Application.Access.AccessModelSource accessModel,
     PocOptions options,
     TimeProvider time,
     ILogger<OutboxProjector> logger) : IAuthorizationProjector, IOutboxInspector, IDisposable
@@ -80,7 +81,7 @@ public sealed partial class OutboxProjector(
             try
             {
                 domainEvent = OutboxEventSerializer.Deserialize(message.Type, message.Payload);
-                plan = EventTupleMapper.Map(domainEvent);
+                plan = EventTupleMapper.Map(domainEvent, accessModel.Current);
             }
             catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or System.Text.Json.JsonException)
             {

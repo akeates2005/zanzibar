@@ -66,6 +66,7 @@ public sealed class SchemaReflectionTests(SpiceDbFixture spice)
                 relation handler: user | group#member
                 relation public_reader: user:*
                 relation weekday_handler: user with on_weekdays
+                permission view = handler + parent->admin
                 permission manage_access = handler + parent->admin
             }
             """, Ct);

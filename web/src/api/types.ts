@@ -38,8 +38,17 @@ interface ObjectByTypeMap {
 }
 export type ObjectByType = ObjectByTypeMap;
 
-/** Object types that can take grants: the business objects plus the platform. */
+/** This application's object types that have a page here: the business objects plus the platform. */
 export type GrantTargetType = ObjectType | 'platform';
+
+/**
+ * A type named to the access endpoints: any resource type in the deployed schema, including another team's type this client
+ * has no page for. Only the server knows the list (it reads it from the engine), so the client does not restrict it.
+ */
+export type AccessTargetType = string;
+
+/** What the generic Access page shows for any resource type's object. */
+export type AccessObjectView = Schemas['AccessObjectView'];
 
 export const OBJECT_TYPES: readonly ObjectType[] = ['customer', 'commerce/domain', 'commerce/wallet', 'commerce/subscription'];
 

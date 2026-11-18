@@ -22,12 +22,13 @@ public sealed class AccessModelTests
         """;
 
     [Fact]
-    public void A_type_with_a_parent_and_manage_access_is_a_resource_type_without_any_code_change()
+    public void A_type_with_a_parent_view_and_manage_access_is_a_resource_type_without_any_code_change()
     {
         var model = Derive(People + """
             definition shipping/parcel {
                 relation parent: platform
                 relation handler: user | group#member
+                permission view = handler
                 permission manage_access = handler
             }
             """);
@@ -46,9 +47,10 @@ public sealed class AccessModelTests
     }
 
     [Theory]
-    [InlineData("relation parent: platform\n relation handler: user | group#member")]        // no manage_access permission
-    [InlineData("relation handler: user | group#member\n permission manage_access = handler")] // no parent relation
-    public void A_type_missing_parent_or_manage_access_is_not_a_resource_type(string body)
+    [InlineData("relation parent: platform\n relation handler: user | group#member\n permission view = handler")]        // no manage_access
+    [InlineData("relation handler: user | group#member\n permission view = handler\n permission manage_access = handler")] // no parent
+    [InlineData("relation parent: platform\n relation handler: user | group#member\n permission manage_access = handler")] // no view: the filter checks it
+    public void A_type_missing_parent_view_or_manage_access_is_not_a_resource_type(string body)
     {
         var model = Derive(People + "definition shipping/parcel {\n" + body + "\n}");
         Assert.False(model.IsResourceType("shipping/parcel"));
@@ -72,6 +74,7 @@ public sealed class AccessModelTests
             definition shipping/parcel {
                 relation parent: platform
                 relation handler: {{subjects}}
+                permission view = parent->manage_access
                 permission manage_access = parent->manage_access
             }
             """);
@@ -95,6 +98,7 @@ public sealed class AccessModelTests
                 relation parent: platform
                 relation zeta: user
                 relation alpha: user
+                permission view = zeta
                 permission manage_access = zeta
             }
             """);

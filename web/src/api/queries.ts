@@ -5,7 +5,7 @@ import { useSession } from '../auth/AuthContext';
 import type { Api } from './client';
 import { keys } from './keys';
 import { unwrap } from './problem';
-import type { GrantTargetType, ObjectByType, ObjectType } from './types';
+import type { AccessTargetType, GrantTargetType, ObjectByType, ObjectType } from './types';
 
 /** Fetches one business object by type, returning the DTO for that type. */
 export function fetchObject<T extends ObjectType>(api: Api, type: T, id: string): Promise<ObjectByType[T]> {
@@ -50,7 +50,17 @@ export function useChildren(parentType: GrantTargetType, id: string, enabled = t
   });
 }
 
-export function useGrants(type: GrantTargetType, id: string, enabled = true) {
+/** The Access page's data for any resource type: name, the caller's permissions, and ancestors. */
+export function useAccessObject(type: AccessTargetType, id: string) {
+  const { user, api } = useSession();
+  return useQuery({
+    queryKey: keys.accessObject(user.id, type, id),
+    queryFn: () => unwrap(api.GET('/api/access/object', { params: { query: { type, id } } })),
+    retry: false,
+  });
+}
+
+export function useGrants(type: AccessTargetType, id: string, enabled = true) {
   const { user, api } = useSession();
   return useQuery({
     queryKey: keys.grants(user.id, type, id),
@@ -60,7 +70,7 @@ export function useGrants(type: GrantTargetType, id: string, enabled = true) {
   });
 }
 
-export function useGrantableGroups(type: GrantTargetType, id: string, enabled = true) {
+export function useGrantableGroups(type: AccessTargetType, id: string, enabled = true) {
   const { user, api } = useSession();
   return useQuery({
     queryKey: keys.grantableGroups(user.id, type, id),
@@ -69,7 +79,7 @@ export function useGrantableGroups(type: GrantTargetType, id: string, enabled = 
   });
 }
 
-export function useEffectiveAccess(type: GrantTargetType, id: string, permission: string | null) {
+export function useEffectiveAccess(type: AccessTargetType, id: string, permission: string | null) {
   const { user, api } = useSession();
   return useQuery({
     queryKey: keys.effective(user.id, type, id, permission ?? ''),
@@ -79,7 +89,7 @@ export function useEffectiveAccess(type: GrantTargetType, id: string, permission
   });
 }
 
-export function useGrantAudit(type: GrantTargetType, id: string, enabled = true) {
+export function useGrantAudit(type: AccessTargetType, id: string, enabled = true) {
   const { user, api } = useSession();
   return useQuery({
     queryKey: keys.audit(user.id, type, id),

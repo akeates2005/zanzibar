@@ -79,9 +79,11 @@ public sealed class OutboxFaultTests : PocTestBase
     [Fact]
     public async Task A_group_deletion_that_breaks_part_way_is_completed_by_the_retry()
     {
-        // GroupDeleted is seven deletes (its own tuples, then every place it is a subject, one per resource type).
+        // GroupDeleted is seven deletes: its own tuples, then every place it is a subject, one per type that accepts
+        // group#member, in ordinal order (commerce/domain, commerce/subscription, commerce/wallet, customer, group,
+        // platform). Failing the seventh leaves the platform step undone after the group step has run.
         Host.Faults.ResetCounters();
-        Host.Faults.FailDeleteCallNumber = 4;
+        Host.Faults.FailDeleteCallNumber = 7;
         await InScopeAsync(async sp =>
         {
             var groups = sp.GetRequiredService<IRepository<Group>>();
@@ -182,9 +184,9 @@ public sealed class OutboxFaultTests : PocTestBase
     public async Task A_grant_that_fails_leaves_a_failed_audit_row_and_can_simply_be_issued_again()
     {
         var target = new GrantTarget(Res("commerce/domain", "acme-ie"), "viewer", SubjectRef.User("erin"));
-        Host.Faults.Down = true;
+        Host.Faults.WritesDown = true;
         await Assert.ThrowsAsync<AuthorizationUnavailableException>(() => InScopeAsync(sp => sp.GetRequiredService<AccessService>().GrantAsync(Actor.ForUser("alice"), target, Ct)));
-        Host.Faults.Down = false;
+        Host.Faults.WritesDown = false;
         Assert.False(await CanAsync("erin", "view", Res("commerce/domain", "acme-ie")));
 
         await InScopeAsync(sp => sp.GetRequiredService<AccessService>().GrantAsync(Actor.ForUser("alice"), target, Ct));

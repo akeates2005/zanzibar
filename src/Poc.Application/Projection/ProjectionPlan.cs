@@ -1,3 +1,4 @@
+using Poc.Application.Access;
 using Poc.Application.Authorization;
 using Poc.Application.Authorization.Schema;
 using Poc.Domain.Commerce;
@@ -19,14 +20,13 @@ public sealed record ProjectionPlan(
 /// <summary>Maps domain events to structural tuples (PRD: Tuple lifecycle). Pure, so it is unit-tested without an engine.</summary>
 public static class EventTupleMapper
 {
-    private static readonly string[] AllResourceTypes =
-    [
-        PlatformSchema.Type, GroupSchema.Type, CustomerSchema.Type, DomainSchema.Type, WalletSchema.Type, SubscriptionSchema.Type,
-    ];
-
-    public static ProjectionPlan Map(IDomainEvent domainEvent)
+    /// <param name="domainEvent">The event to map.</param>
+    /// <param name="model">The deployed schema's model: a deleted group's grants are removed from every type that accepts
+    /// <c>group#member</c>, including other teams' types.</param>
+    public static ProjectionPlan Map(IDomainEvent domainEvent, AccessModel model)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
+        ArgumentNullException.ThrowIfNull(model);
         return domainEvent switch
         {
             CustomerCreated e => Create(Res(CustomerSchema.Type, e.CustomerId), CustomerSchema.Relations.Parent, PlatformSchema.Main),
@@ -42,7 +42,7 @@ public static class EventTupleMapper
             DomainDeleted e => DeleteAllFor(Res(DomainSchema.Type, e.DomainId)),
             WalletDeleted e => DeleteAllFor(Res(WalletSchema.Type, e.WalletId)),
             SubscriptionDeleted e => DeleteAllFor(Res(SubscriptionSchema.Type, e.SubscriptionId)),
-            GroupDeleted e => DeleteGroup(e),
+            GroupDeleted e => DeleteGroup(e, model),
             _ => throw new NotSupportedException($"No tuple mapping exists for domain event {domainEvent.GetType().Name}."),
         };
     }
@@ -70,11 +70,13 @@ public static class EventTupleMapper
     /// The group's own relationships, then every relationship whose subject is <c>group:{id}#member</c>, one delete per
     /// resource type. Replaying is harmless because deletes are idempotent.
     /// </summary>
-    private static ProjectionPlan DeleteGroup(GroupDeleted e)
+    private static ProjectionPlan DeleteGroup(GroupDeleted e, AccessModel model)
     {
+        // Without a loaded model the list of types would be empty and the group's grants would silently survive.
+        if (!model.IsLoaded) throw new InvalidOperationException("The access model is not loaded, so a group's grants cannot all be found.");
         var group = Res(GroupSchema.Type, e.GroupId);
         var deletes = new List<RelationshipFilter> { new(GroupSchema.Type, group.Id) };
-        deletes.AddRange(AllResourceTypes.Select(type => new RelationshipFilter(
+        deletes.AddRange(model.TypesGrantingGroups.Select(type => new RelationshipFilter(
             type, Subject: new SubjectFilter(GroupSchema.Type, e.GroupId, GroupSchema.Relations.Member))));
         return new ProjectionPlan(group, [], deletes);
     }

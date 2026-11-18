@@ -18,7 +18,7 @@ import { useChildren, useObject, useTree } from '../../api/queries';
 import { isObjectType, OBJECT_TYPES, type BreadcrumbDto, type ObjectDto, type ObjectType } from '../../api/types';
 import { ActionButton, EmptyState, NotFoundPanel, PageTitle, PermissionList, QueryBoundary } from '../../components/common';
 import { formatDateTime, formatMoney, typeLabel } from '../../lib/format';
-import { parseResourcePath, type ResourcePath } from '../../lib/resourcePath';
+import { objectHref, parseResourcePath, type ResourcePath } from '../../lib/resourcePath';
 import { moveTargets } from '../../lib/tree';
 import { AccessTab } from '../access/AccessTab';
 import { PlatformPage } from '../platform/PlatformPage';
@@ -40,14 +40,14 @@ export function ResourceDetail() {
   return <ObjectDetail key={`${path.type}:${path.id}`} type={path.type} id={path.id} tab={path.tab} />;
 }
 
-function Crumbs({ ancestors }: { ancestors: readonly BreadcrumbDto[] }) {
+export function Crumbs({ ancestors }: { ancestors: readonly BreadcrumbDto[] }) {
   if (ancestors.length === 0) return null;
   return (
     <Box component="nav" aria-label="Where this is" mb="xs">
       <Breadcrumbs>
       {ancestors.map((a) =>
         a.viewable && a.id !== null ? (
-          <Anchor key={`${a.type}:${a.id}`} component={Link} to={linkTo(a.type, a.id)} size="sm">
+          <Anchor key={`${a.type}:${a.id}`} component={Link} to={objectHref(a.type, a.id, ['platform', ...OBJECT_TYPES])} size="sm">
             {a.name}
           </Anchor>
         ) : (

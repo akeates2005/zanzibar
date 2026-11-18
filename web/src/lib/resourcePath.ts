@@ -7,6 +7,16 @@
  *
  * Anything else (an unknown type, a missing id, extra segments) is `null`, which the page shows as not found.
  */
+/**
+ * Where an object opens: this application's types (`platform` and the business objects) on their own page, any other
+ * resource type (another team's) on the generic Access page, which needs nothing but the type and id.
+ */
+export function objectHref(type: string, id: string, ownTypes: readonly string[]): string {
+  return ownTypes.includes(type)
+    ? `/resources/${type}/${id}`
+    : `/access?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+}
+
 export interface ResourcePath {
   type: string;
   id: string;

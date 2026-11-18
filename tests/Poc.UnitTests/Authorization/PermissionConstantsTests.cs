@@ -1,4 +1,5 @@
 using System.Reflection;
+using Poc.Application.Access;
 using Poc.Application.Authorization;
 using Poc.Application.Authorization.Schema;
 
@@ -78,20 +79,22 @@ public sealed class PermissionConstantsTests
 
     [Theory]
     [MemberData(nameof(SchemaTypes))]
-    public void The_schema_catalog_lists_every_permission_of_each_type_in_full(string typeName)
+    public void The_access_model_lists_every_permission_of_each_type_in_schema_order(string typeName)
     {
-        Assert.Equal(Schema.Types[typeName].Permissions, SchemaCatalog.PermissionsOf(typeName).ToHashSet().Order());
-        Assert.True(SchemaCatalog.IsKnownType(typeName));
+        var model = AccessModel.FromSchema(Schema.Definitions);
+        Assert.Equal(Schema.Definitions.Single(d => d.Name == typeName).Permissions, model.PermissionsOf(typeName));
+        Assert.Equal(Schema.Types[typeName].Permissions, model.PermissionsOf(typeName).Order(StringComparer.Ordinal));
     }
 
     [Fact]
-    public void The_schema_catalog_knows_nothing_about_unknown_types_or_permissions()
+    public void The_access_model_knows_nothing_about_unknown_types_or_permissions()
     {
-        Assert.Empty(SchemaCatalog.PermissionsOf("nonsense"));
-        Assert.False(SchemaCatalog.IsKnownType("nonsense"));
-        Assert.True(SchemaCatalog.HasPermission("commerce/wallet", "top_up"));
-        Assert.False(SchemaCatalog.HasPermission("commerce/wallet", "cancel")); // a subscription permission
-        Assert.False(SchemaCatalog.HasPermission("nonsense", "view"));
+        var model = AccessModel.FromSchema(Schema.Definitions);
+        Assert.Empty(model.PermissionsOf("nonsense"));
+        Assert.True(model.HasPermission("commerce/wallet", "top_up"));
+        Assert.False(model.HasPermission("commerce/wallet", "cancel")); // a subscription permission
+        Assert.False(model.HasPermission("nonsense", "view"));
+        Assert.Empty(AccessModel.Empty.PermissionsOf("commerce/wallet"));
     }
 
     [Fact]

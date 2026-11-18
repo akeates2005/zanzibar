@@ -18,6 +18,12 @@ public static class AccessEndpoints
 
     public static void Map(RouteGroupBuilder api)
     {
+        // The Access page for any resource type, including another team's type this application has no table for.
+        api.MapGet("/access/object", async (string? type, string? id, AccessQueryService access, CurrentUser user, CancellationToken ct) =>
+            Results.Ok(await access.AccessObjectAsync(user.Actor, new ResourceRef(type!, id!), ct)))
+            .WithName("GetAccessObject").WithTags("Access")
+            .RequiresOn(PlatformSchema.Permissions.ManageAccess, Target).Produces<AccessObjectView>();
+
         api.MapGet("/access/grants", async (string? type, string? id, AccessQueryService access, CancellationToken ct) =>
             Results.Ok(await access.GrantsAsync(new ResourceRef(type!, id!), ct)))
             .WithName("GetGrants").WithTags("Access")

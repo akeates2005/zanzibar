@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Poc.Application.Access;
 using Poc.Application.Authorization;
 
 namespace Poc.IntegrationTests.Api;
@@ -45,7 +47,7 @@ public sealed class ObjectApiTests : ApiTestBase
         var wallet = await (await (await AsAsync("carol")).GetAsync("/api/wallets/uk-ops")).ExpectAsync(HttpStatusCode.OK);
         var keys = wallet.GetProperty("permissions").EnumerateObject().Select(p => p.Name).Order().ToArray();
 
-        Assert.Equal(SchemaCatalog.PermissionsOf("commerce/wallet").Order(), keys);
+        Assert.Equal(Host.Services.GetRequiredService<AccessModelSource>().Current.PermissionsOf("commerce/wallet").Order(), keys);
         Assert.True(wallet.Permission("spend"));
         Assert.True(wallet.Permission("create_subscription"));
         Assert.False(wallet.Permission("top_up"));

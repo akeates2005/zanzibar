@@ -58,35 +58,8 @@ public sealed class EfDirectoryStore(PocDbContext db) : IDirectoryStore
     public Task<Group?> FindGroupAsync(string groupId, CancellationToken ct) =>
         db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
 
-    public async Task<ObjectInfo?> DescribeAsync(ResourceRef resource, CancellationToken ct)
-    {
-        var id = resource.Id;
-        switch (resource.Type)
-        {
-            case PlatformSchema.Type:
-                return id == PlatformSchema.MainId ? new ObjectInfo(null) : null;
-            case CustomerSchema.Type:
-                return await db.Customers.AsNoTracking().AnyAsync(c => c.Id == id, ct).ConfigureAwait(false) ? new ObjectInfo(id) : null;
-            case DomainSchema.Type:
-                var domain = await db.Domains.AsNoTracking().Where(d => d.Id == id).Select(d => d.CustomerId).FirstOrDefaultAsync(ct).ConfigureAwait(false);
-                return domain is null ? null : new ObjectInfo(domain);
-            case WalletSchema.Type:
-                var wallet = await (from w in db.Wallets.AsNoTracking()
-                                    join d in db.Domains.AsNoTracking() on w.DomainId equals d.Id
-                                    where w.Id == id
-                                    select d.CustomerId).FirstOrDefaultAsync(ct).ConfigureAwait(false);
-                return wallet is null ? null : new ObjectInfo(wallet);
-            case SubscriptionSchema.Type:
-                var subscription = await (from s in db.Subscriptions.AsNoTracking()
-                                          join w in db.Wallets.AsNoTracking() on s.WalletId equals w.Id
-                                          join d in db.Domains.AsNoTracking() on w.DomainId equals d.Id
-                                          where s.Id == id
-                                          select d.CustomerId).FirstOrDefaultAsync(ct).ConfigureAwait(false);
-                return subscription is null ? null : new ObjectInfo(subscription);
-            default:
-                return null;
-        }
-    }
+    public Task<bool> CustomerExistsAsync(string customerId, CancellationToken ct) =>
+        db.Customers.AsNoTracking().AnyAsync(c => c.Id == customerId, ct);
 }
 
 /// <summary>Sets <c>AuthzToken</c> without touching the row version, so a stamp never conflicts with a user's edit.</summary>

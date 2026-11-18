@@ -318,3 +318,71 @@ test host starts; that run hung rather than failing fast and was stopped, with n
   object ids was not confirmed; they accept `*`, which the API must never accept as an object id.
 - Not tested: whether ReflectSchema returns doc comments (`schema.zed` has none), and how relations with SpiceDB's
   expiration trait are reflected (this proto has no field for it).
+
+## A new team's type works through the API and the Access tab (step 3, part 2, with step 4's engine walk; 2026-11-18)
+
+**Agreed with Andrew on 2026-11-18:** keep step 3's Done-when as written. That needed step 4's engine walk, so step 4 is
+unpaused and done here in part.
+
+**What changed**
+- **Hard-coded type lists removed, now read from the access model:** the permission catalogue (`SchemaCatalog`, deleted),
+  `AccessService.PermissionFor` (now `manage_access`, which every resource type has by definition),
+  `StartupSequence.ObjectTypes`, and `EventTupleMapper.AllResourceTypes`. A deleted group's grants are now removed from
+  every type that accepts `group#member`, including other teams' types; with the old list they would have survived.
+- **Engine walk (`ObjectHierarchy`):** whether an object exists, and its ancestors and root customer, now come from `parent`
+  tuples in the engine instead of this app's database (`IDirectoryStore.DescribeAsync` and `ObjectInfo` are deleted). The
+  grant command, the group picker, the grants view and the new Access endpoint all use the same walk. The scope rule is
+  stated once (`GrantRules.IsGroupInScope`), and the picker filters through it.
+- **New endpoint `GET /api/access/object?type=&id=`** (`manage_access`): the name (the id where this app has no record), the
+  caller's permission map for the type, and the ancestors. **New client route `/access?type=&id=`** shows the existing
+  Access tab for any type. Links to another team's object go there; links to this app's types go to their own pages.
+
+**Decided under delegated design authority**
+- A **resource type must also have `view`**: the endpoint filter checks `view` on every resource route (`PRD.md:293`), so a
+  type without it would fail at the engine rather than be refused cleanly.
+- An object **exists if it has exactly one `parent` tuple** (`platform:main` always exists). Two parents is corrupt data and
+  is refused; a chain that breaks partway up stops there, so no customer scope applies (customer groups are refused,
+  platform groups are still allowed).
+- **Inherited access stays as the PRD defines it** (`PRD.md:379`: each ancestor's administrators, plus the platform's support
+  subjects). It is not derived from permission expressions (ReflectSchema returns permission names only); an ancestor type
+  with no `administrator` relation contributes nothing.
+- **A group's owner is still checked in this app's database** (`CustomerExistsAsync`): customers are platform-owned
+  records, and checking the engine there would turn the PRD's "pending" (202) during an outage that starts after the
+  permission check into a 503 (D5).
+- **If the model is not loaded, a grant reports "engine unavailable"** (503) rather than "takes no direct grants" (422).
+- **The resource tree still lists only this app's types:** it intersects the engine with this app's tables (PRD rule 5).
+  Another team's objects are reached by link or URL, not by browsing.
+
+**Behaviour changes**
+- **The engine fails between the permission check and the structure read:** the grant is refused with 503 and **no audit
+  row**, because nothing was attempted. A failure at the tuple write itself still records a Failed row, as the PRD
+  requires. The fault injector gained `WritesDown` so that the write-failure tests keep testing the write; a new test
+  covers the structure-read case.
+- **Order of a group's deletes:** they now run in ordinal type order. `A_group_deletion_that_breaks_part_way...` now fails
+  the 7th of 7 deletes instead of the 4th, so it still checks a part-way failure after the nesting step.
+
+**Proven**
+- **`NewTeamTypeTests`:** the API runs `schema.zed` plus a `shipping/parcel` type that has no C# anywhere, and parcels exist
+  only as `parent` tuples. The Access endpoint, grantable roles, inherited administrators, grant, effective access, revoke,
+  the group scope across customers, and 404 for a parcel with no parent all work.
+- **`ObjectHierarchyTests`:** the engine walk against a real engine.
+- **`GroupScopeAgreementTests`:** for every seed object and group, the picker offers a group if and only if granting it
+  succeeds, for priya and for alice.
+- **Vitest:** the Access page for an unknown type, and link routing.
+- **Mutation-checked:**
+  - the scope rule always passing (caught by the agreement and parcel tests);
+  - a missing parent counted as existing;
+  - group deletes limited to resource types;
+  - links always pointing at `/resources`.
+
+**Not verified or not done**
+- **No Playwright journey opens the Access page for another team's type in a browser.** The client part is proven by
+  component tests only: the e2e stack runs the real `schema.zed`, and has no way to add a type or write a parcel's parent
+  tuple.
+- **Not tested:**
+  - a deletion race: between this app deleting an object and the projector deleting its tuples, the engine still says it
+    exists, so a grant could be written;
+  - `ObjectHierarchy.MaxDepth`: the current schema cannot form a cycle.
+- **Still to do in steps 3 and 4:**
+  - the platform-admin condition is still written twice (`AccessService`, `AccessQueryService.GrantableGroupsAsync`);
+  - ids are still checked with `EntityId.Validate`.

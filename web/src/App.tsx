@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { NotFoundPanel } from './components/common';
 import { Shell } from './components/Shell';
+import { AccessPage } from './features/access/AccessPage';
 import { ExplorerPage } from './features/explorer/ExplorerPage';
 import { GroupsPage } from './features/groups/GroupsPage';
 import { ResourceBrowser } from './features/resources/ResourceBrowser';
@@ -17,6 +18,8 @@ export function App() {
         <Route path="/resources" element={<ResourceBrowser />} />
         {/* One catch-all: an object type may contain a slash (`commerce/wallet`), so it cannot be a route segment. */}
         <Route path="/resources/*" element={<ResourceDetail />} />
+        {/* Any resource type, named in the query string as the API names it: another team's type has no page of its own. */}
+        <Route path="/access" element={<AccessPage />} />
         <Route path="/customers/:id/groups" element={<GroupsPage platform={false} />} />
         <Route path="/platform/groups" element={<GroupsPage platform />} />
         <Route path="/explorer" element={<ExplorerPage />} />

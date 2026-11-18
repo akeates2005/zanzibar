@@ -51,6 +51,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CommerceService>();
         services.AddScoped<ObjectReadService>();
         services.AddSingleton<AccessModelSource>();
+        services.AddSingleton<ObjectHierarchy>();
         services.AddScoped<AccessQueryService>();
         services.AddScoped<AccessService>();
         services.AddScoped<DefaultGrantPolicy>();

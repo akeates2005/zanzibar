@@ -15,6 +15,12 @@ public sealed class FaultInjectingRelationshipStore(IRelationshipStore inner) : 
     /// <summary>While true every call fails as if the engine were unreachable (transient).</summary>
     public bool Down { get; set; }
 
+    /// <summary>
+    /// While true writes and deletes fail as if the engine were unreachable (transient) but reads still work: the engine
+    /// failing after the grant command has read the object's structure, at the tuple write itself.
+    /// </summary>
+    public bool WritesDown { get; set; }
+
     /// <summary>When set, a write for which this returns true is refused as if the engine rejected it (not transient).</summary>
     public Func<IReadOnlyCollection<RelationshipUpdate>, bool>? PoisonWrite { get; set; }
 
@@ -45,6 +51,7 @@ public sealed class FaultInjectingRelationshipStore(IRelationshipStore inner) : 
     {
         WriteCalls++;
         ThrowIfDown("WriteRelationships");
+        ThrowIfWritesDown("WriteRelationships");
         MaybeFlap("WriteRelationships");
         if (PoisonWrite?.Invoke(updates) == true)
             throw new AuthorizationUnavailableException("WriteRelationships", "InvalidArgument: injected poison", isTransient: false);
@@ -63,6 +70,7 @@ public sealed class FaultInjectingRelationshipStore(IRelationshipStore inner) : 
     public Task<string> DeleteAsync(RelationshipFilter filter, CancellationToken ct)
     {
         ThrowIfDown("DeleteRelationships");
+        ThrowIfWritesDown("DeleteRelationships");
         MaybeFlap("DeleteRelationships");
         lock (_gate)
         {
@@ -80,6 +88,11 @@ public sealed class FaultInjectingRelationshipStore(IRelationshipStore inner) : 
     private void ThrowIfDown(string operation)
     {
         if (Down) throw new AuthorizationUnavailableException(operation, "Unavailable: injected outage", isTransient: true);
+    }
+
+    private void ThrowIfWritesDown(string operation)
+    {
+        if (WritesDown) throw new AuthorizationUnavailableException(operation, "Unavailable: injected outage of writes", isTransient: true);
     }
 
     private void MaybeFlap(string operation)

@@ -1,3 +1,4 @@
+using Poc.Application.Access;
 using Poc.Application.Authorization;
 using Poc.Application.Authorization.Schema;
 using Poc.Application.Common;
@@ -9,14 +10,16 @@ namespace Poc.Application.Queries;
 /// LookupResources intersected with the database query (PRD rule 5), so nothing is ever returned that the caller
 /// could not view.
 /// </summary>
-public sealed class ObjectReadService(IAuthorizer authorizer, ICommerceQueries queries)
+public sealed class ObjectReadService(IAuthorizer authorizer, ICommerceQueries queries, AccessModelSource accessModel)
 {
+    // This application's own object types, not every resource type: the tree intersects the engine with this database's
+    // tables (PRD rule 5), so another team's type could never appear in it. Its objects are reached through the Access page.
     private static readonly string[] ViewableObjectTypes =
         [PlatformSchema.Type, CustomerSchema.Type, DomainSchema.Type, WalletSchema.Type, SubscriptionSchema.Type];
 
     /// <summary>The caller's answer for every permission of the object's type, in one bulk check. The client uses it to enable controls; the server never trusts it.</summary>
     public Task<IReadOnlyDictionary<string, bool>> PermissionsAsync(Actor actor, ResourceRef resource, CancellationToken ct) =>
-        authorizer.CheckManyAsync(actor.Subject, resource, SchemaCatalog.PermissionsOf(resource.Type), ct);
+        authorizer.CheckManyAsync(actor.Subject, resource, accessModel.Current.PermissionsOf(resource.Type), ct);
 
     /// <summary>Ancestors root-first. Ones the caller cannot view appear by name only, never as something to open.</summary>
     public async Task<IReadOnlyList<Breadcrumb>> BreadcrumbsAsync(Actor actor, ResourceRef resource, CancellationToken ct)

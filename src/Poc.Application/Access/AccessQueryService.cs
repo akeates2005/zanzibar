@@ -18,7 +18,8 @@ public sealed class AccessQueryService(
     IDirectoryQueries directory,
     ICommerceQueries commerce,
     IAuthorizer authorizer,
-    AccessModelSource accessModel)
+    AccessModelSource accessModel,
+    ObjectHierarchy hierarchy)
 {
     private const string AdminEffect = "admin";
     private const string ViewEffect = "view";
@@ -34,9 +35,9 @@ public sealed class AccessQueryService(
         }
 
         var inheritedSources = new List<(ObjectSummary Source, Relationship Tuple, string Effect)>();
-        foreach (var ancestor in await commerce.AncestorsAsync(resource, ct).ConfigureAwait(false))
+        foreach (var ancestor in await NamedAncestorsAsync(resource, ct).ConfigureAwait(false))
         {
-            foreach (var (relation, effect) in InheritedRelations(ancestor.Type))
+            foreach (var (relation, effect) in InheritedRelations(model, ancestor.Type))
             {
                 foreach (var tuple in await tuples.ReadAsync(new RelationshipFilter(ancestor.Type, ancestor.Id, relation), ct).ConfigureAwait(false))
                     inheritedSources.Add((ancestor, tuple, effect));
@@ -86,17 +87,18 @@ public sealed class AccessQueryService(
     /// </summary>
     public async Task<IReadOnlyList<GroupSummary>> GrantableGroupsAsync(Actor actor, ResourceRef resource, CancellationToken ct)
     {
-        var groups = new List<GroupSummary>();
-        var customerId = resource.Type == CustomerSchema.Type
-            ? resource.Id
-            : (await commerce.AncestorsAsync(resource, ct).ConfigureAwait(false)).FirstOrDefault(a => a.Type == CustomerSchema.Type)?.Id;
-        if (customerId is not null)
-            groups.AddRange(await directory.AllGroupsOwnedByAsync(GroupOwnerType.Customer, customerId, ct).ConfigureAwait(false));
+        // The same engine walk the grant command uses, so the picker and the command cannot disagree on the root customer.
+        var rootCustomerId = (await hierarchy.PlaceAsync(resource, ct).ConfigureAwait(false))?.RootCustomerId;
+        var candidates = new List<GroupSummary>();
+        if (rootCustomerId is not null)
+            candidates.AddRange(await directory.AllGroupsOwnedByAsync(GroupOwnerType.Customer, rootCustomerId, ct).ConfigureAwait(false));
 
         if (await authorizer.CheckAsync(actor.Subject, PlatformSchema.Permissions.Admin, PlatformSchema.Main, ct).ConfigureAwait(false))
-            groups.AddRange(await directory.AllGroupsOwnedByAsync(GroupOwnerType.Platform, PlatformSchema.MainId, ct).ConfigureAwait(false));
+            candidates.AddRange(await directory.AllGroupsOwnedByAsync(GroupOwnerType.Platform, PlatformSchema.MainId, ct).ConfigureAwait(false));
 
-        return groups.OrderBy(g => g.Name, StringComparer.Ordinal).ToList();
+        return candidates
+            .Where(g => GrantRules.IsGroupInScope(g.OwnerType, g.OwnerId, rootCustomerId))
+            .OrderBy(g => g.Name, StringComparer.Ordinal).ToList();
     }
 
     /// <summary>Allowed or denied for any user, permission and resource, with the engine's trace where it returns one.</summary>
@@ -143,13 +145,46 @@ public sealed class AccessQueryService(
         return new GroupDetailView(new GroupSummary(group.Id, group.Name, group.OwnerType, group.OwnerId), members, grantedOn);
     }
 
-    private static IEnumerable<(string Relation, string Effect)> InheritedRelations(string ancestorType) => ancestorType == PlatformSchema.Type
-        ? [(PlatformSchema.Relations.Administrator, AdminEffect), (PlatformSchema.Relations.Support, ViewEffect)]
-        : [(CustomerSchema.Relations.Administrator, AdminEffect)]; // administrator exists under the same name on customer, domain and wallet
-
-    private static void RequirePermission(string type, string permission)
+    /// <summary>
+    /// PRD (Access tab): each ancestor's administrators and the platform's support subjects. An ancestor type with no
+    /// <c>administrator</c> relation contributes nothing, rather than an engine error.
+    /// </summary>
+    private static IEnumerable<(string Relation, string Effect)> InheritedRelations(AccessModel model, string ancestorType)
     {
-        if (!SchemaCatalog.HasPermission(type, permission))
+        if (model.HasRelation(ancestorType, CustomerSchema.Relations.Administrator)) yield return (CustomerSchema.Relations.Administrator, AdminEffect);
+        if (ancestorType == PlatformSchema.Type) yield return (PlatformSchema.Relations.Support, ViewEffect);
+    }
+
+    /// <summary>Ancestors from the engine, root-first, named from this application's database where it knows them, else by id.</summary>
+    private async Task<IReadOnlyList<ObjectSummary>> NamedAncestorsAsync(ResourceRef resource, CancellationToken ct)
+    {
+        var ancestors = (await hierarchy.PlaceAsync(resource, ct).ConfigureAwait(false))?.Ancestors ?? [];
+        var names = (await commerce.GetSummariesAsync(ancestors, ct).ConfigureAwait(false))
+            .ToDictionary(s => new ResourceRef(s.Type, s.Id), s => s.Name);
+        return ancestors.Select(a => new ObjectSummary(a.Type, a.Id, names.GetValueOrDefault(a, a.Id), null, null)).ToList();
+    }
+
+    /// <summary>
+    /// What the Access page needs for any resource type, including ones this application has no table for: the caller's
+    /// answer for every permission of the type, and the ancestors (viewable ones openable, the rest labels).
+    /// </summary>
+    public async Task<AccessObjectView> AccessObjectAsync(Actor actor, ResourceRef resource, CancellationToken ct)
+    {
+        var permissions = await authorizer.CheckManyAsync(actor.Subject, resource, accessModel.Current.PermissionsOf(resource.Type), ct).ConfigureAwait(false);
+        var crumbs = new List<Breadcrumb>();
+        foreach (var ancestor in await NamedAncestorsAsync(resource, ct).ConfigureAwait(false))
+        {
+            var viewable = await authorizer.CheckAsync(actor.Subject, AccessModel.ViewPermission, new ResourceRef(ancestor.Type, ancestor.Id), ct).ConfigureAwait(false);
+            crumbs.Add(new Breadcrumb(ancestor.Type, viewable ? ancestor.Id : null, ancestor.Name, viewable));
+        }
+
+        var name = await commerce.GetSummariesAsync([resource], ct).ConfigureAwait(false) is { Count: > 0 } known ? known[0].Name : resource.Id;
+        return new AccessObjectView(resource.Type, resource.Id, name, permissions, crumbs);
+    }
+
+    private void RequirePermission(string type, string permission)
+    {
+        if (!accessModel.Current.HasPermission(type, permission))
             throw new RuleViolationException("unknown_permission", $"'{permission}' is not a permission of {type}.");
     }
 

@@ -21,6 +21,13 @@ public sealed record DirectGrantView(string Relation, SubjectView Subject, strin
 /// <summary>Access that reaches an object from an ancestor: that ancestor's administrators, and the platform's support subjects.</summary>
 public sealed record InheritedGrantView(string Relation, string Effect, SubjectView Subject, string SourceType, string SourceId, string SourceName);
 
+/// <summary>
+/// Any resource type's object as the Access page sees it: a name (the id where this application has no record of it), the
+/// caller's answer for every permission of the type, and its ancestors.
+/// </summary>
+public sealed record AccessObjectView(
+    string Type, string Id, string Name, IReadOnlyDictionary<string, bool> Permissions, IReadOnlyList<Breadcrumb> Ancestors);
+
 public sealed record GrantsView(
     IReadOnlyList<DirectGrantView> Direct,
     IReadOnlyList<InheritedGrantView> Inherited,

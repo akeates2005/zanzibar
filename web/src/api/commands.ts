@@ -6,7 +6,7 @@ import { useSession } from '../auth/AuthContext';
 import type { Api } from './client';
 import { userKey } from './keys';
 import { describeError, unwrap } from './problem';
-import type { GrantTargetType, ObjectType } from './types';
+import type { AccessTargetType, ObjectType } from './types';
 
 /** True when the server saved the change but could not yet tell the authorisation engine (HTTP 202). */
 export function isPending(result: unknown): boolean {
@@ -120,10 +120,10 @@ export interface SubjectChoice {
   id: string;
 }
 
-export const grantAccess = (api: Api, v: { type: GrantTargetType; id: string; relation: string; subject: SubjectChoice }) =>
+export const grantAccess = (api: Api, v: { type: AccessTargetType; id: string; relation: string; subject: SubjectChoice }) =>
   unwrap(api.PUT('/api/access/grants', { params: { query: { type: v.type, id: v.id } }, body: { relation: v.relation, subject: v.subject } }));
 
-export const revokeAccess = (api: Api, v: { type: GrantTargetType; id: string; relation: string; subject: SubjectChoice }) =>
+export const revokeAccess = (api: Api, v: { type: AccessTargetType; id: string; relation: string; subject: SubjectChoice }) =>
   unwrap(
     api.DELETE('/api/access/grants', {
       params: { query: { type: v.type, id: v.id, relation: v.relation, subjectType: v.subject.type, subjectId: v.subject.id } },

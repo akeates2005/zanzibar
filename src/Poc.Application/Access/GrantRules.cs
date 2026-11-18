@@ -46,11 +46,15 @@ public static class GrantRules
     /// </summary>
     public static void RequireGroupInScope(Group group, string? objectRootCustomerId)
     {
-        if (group.OwnerType == GroupOwnerType.Platform) return;
-        if (objectRootCustomerId is null || objectRootCustomerId != group.OwnerId)
+        ArgumentNullException.ThrowIfNull(group);
+        if (!IsGroupInScope(group.OwnerType, group.OwnerId, objectRootCustomerId))
             throw new RuleViolationException(Codes.GroupOwnerMismatch,
                 $"Group '{group.Id}' belongs to customer '{group.OwnerId}' and cannot be granted on an object outside that customer.");
     }
+
+    /// <summary>Rule 1 as a predicate: the one statement of it, used by the grant command and the group picker alike.</summary>
+    public static bool IsGroupInScope(GroupOwnerType ownerType, string ownerId, string? objectRootCustomerId) =>
+        ownerType == GroupOwnerType.Platform || (objectRootCustomerId is not null && objectRootCustomerId == ownerId);
 
     /// <summary>Rule 2 (same owner), plus the trivial self-nesting case that is also a cycle.</summary>
     public static void RequireNestable(Group container, Group child)

@@ -7,7 +7,7 @@ using Poc.Domain.Directory;
 
 namespace Poc.Infrastructure.Persistence;
 
-public sealed class EfReconciliationSource(IDbContextFactory<PocDbContext> factory) : IStructuralReferenceSource
+public sealed class EfReconciliationSource(IDbContextFactory<PocDbContext> factory, Poc.Application.Access.AccessModelSource accessModel) : IStructuralReferenceSource
 {
     public async Task<IReadOnlyList<Relationship>> ExpectedAsync(CancellationToken ct)
     {
@@ -41,7 +41,7 @@ public sealed class EfReconciliationSource(IDbContextFactory<PocDbContext> facto
         {
             try
             {
-                pending.Add(EventTupleMapper.Map(OutboxEventSerializer.Deserialize(message.Type, message.Payload)).Target);
+                pending.Add(EventTupleMapper.Map(OutboxEventSerializer.Deserialize(message.Type, message.Payload), accessModel.Current).Target);
             }
             catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or System.Text.Json.JsonException)
             {

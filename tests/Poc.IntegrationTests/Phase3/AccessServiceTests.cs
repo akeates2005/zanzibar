@@ -338,24 +338,38 @@ public sealed class AccessServiceTests : PocTestBase
     [Fact]
     public async Task A_tuple_write_failure_marks_the_audit_row_failed_and_surfaces_as_engine_unavailable()
     {
-        Host.Faults.Down = true;
+        Host.Faults.WritesDown = true;
 
         await Assert.ThrowsAsync<AuthorizationUnavailableException>(() => AsAsync(a => a.GrantAsync(
             Alice, Grant("commerce/domain", "acme-ie", DomainSchema.Relations.Viewer, SubjectRef.User("erin")), Ct)));
 
         var entry = (await AuditAsync()).Last();
         Assert.Equal((GrantStatus.Failed, "erin", null), (entry.Status, entry.SubjectId, entry.ZedToken));
-        Host.Faults.Down = false;
+        Host.Faults.WritesDown = false;
         Assert.False(await CanAsync("erin", DomainSchema.Permissions.View, Res("commerce/domain", "acme-ie"))); // no partial grant
+    }
+
+    [Fact]
+    public async Task An_engine_that_fails_while_reading_the_objects_structure_refuses_the_grant_before_any_audit_row()
+    {
+        // The permission check passed (it uses the real authoriser); the structure read for the scope rules then fails.
+        var before = (await AuditAsync()).Count;
+        Host.Faults.Down = true;
+        await Assert.ThrowsAsync<AuthorizationUnavailableException>(() => AsAsync(a => a.GrantAsync(
+            Alice, Grant("commerce/domain", "acme-ie", DomainSchema.Relations.Viewer, SubjectRef.User("erin")), Ct)));
+        Host.Faults.Down = false;
+
+        Assert.Equal(before, (await AuditAsync()).Count); // nothing was attempted, so nothing is audited
+        Assert.False(await CanAsync("erin", DomainSchema.Permissions.View, Res("commerce/domain", "acme-ie")));
     }
 
     [Fact]
     public async Task A_failed_revoke_is_audited_and_leaves_the_access_in_place()
     {
-        Host.Faults.Down = true;
+        Host.Faults.WritesDown = true;
         await Assert.ThrowsAsync<AuthorizationUnavailableException>(() => AsAsync(a => a.RevokeAsync(
             Alice, Grant("commerce/subscription", "m365-e3", SubscriptionSchema.Relations.Operator, SubjectRef.User("dave")), Ct)));
-        Host.Faults.Down = false;
+        Host.Faults.WritesDown = false;
 
         Assert.Equal((GrantAction.Revoke, GrantStatus.Failed), ((await AuditAsync()).Last().Action, (await AuditAsync()).Last().Status));
         Assert.True(await CanAsync("dave", SubscriptionSchema.Permissions.ChangeQuantity, Res("commerce/subscription", "m365-e3")));

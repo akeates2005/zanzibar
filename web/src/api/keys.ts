@@ -9,6 +9,7 @@ export const keys = {
   tree: (u: string) => [...userKey(u), 'tree'] as const,
   object: (u: string, type: string, id: string) => [...userKey(u), 'object', type, id] as const,
   children: (u: string, type: string, id: string) => [...userKey(u), 'children', type, id] as const,
+  accessObject: (u: string, type: string, id: string) => [...userKey(u), 'access', type, id, 'object'] as const,
   grants: (u: string, type: string, id: string) => [...userKey(u), 'access', type, id, 'grants'] as const,
   grantableGroups: (u: string, type: string, id: string) => [...userKey(u), 'access', type, id, 'grantable-groups'] as const,
   effective: (u: string, type: string, id: string, permission: string) =>

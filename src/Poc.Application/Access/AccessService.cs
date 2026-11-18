@@ -35,6 +35,7 @@ public sealed class AccessService(
     IAuthorizationProjector projector,
     IAccessLog log,
     AccessModelSource accessModel,
+    ObjectHierarchy hierarchy,
     TimeProvider time)
 {
     // ---- Grants on business objects -----------------------------------------------------------------------------
@@ -53,14 +54,14 @@ public sealed class AccessService(
         GrantRules.RequireGrantableRelation(accessModel.Current, grant.Resource.Type, grant.Relation);
         GrantRules.RequireValidSubjectShape(grant.Subject);
 
-        var info = await directory.DescribeAsync(grant.Resource, ct).ConfigureAwait(false)
+        var placement = await hierarchy.PlaceAsync(grant.Resource, ct).ConfigureAwait(false)
             ?? throw new NotFoundException(grant.Resource.ToString());
 
         if (grant.Subject.Type == GroupSchema.Type)
         {
             var group = await directory.FindGroupAsync(grant.Subject.Id, ct).ConfigureAwait(false)
                 ?? throw new RuleViolationException(GrantRules.Codes.UnknownSubject, $"Group '{grant.Subject.Id}' does not exist.");
-            GrantRules.RequireGroupInScope(group, info.RootCustomerId);
+            GrantRules.RequireGroupInScope(group, placement.RootCustomerId);
             // Platform groups may be granted anywhere, and only by a platform administrator (rule 1).
             if (group.OwnerType == GroupOwnerType.Platform)
                 await RequireAsync(actor, PlatformSchema.Permissions.Admin, PlatformSchema.Main, ct).ConfigureAwait(false);
@@ -129,7 +130,12 @@ public sealed class AccessService(
         var owner = ownerType == GroupOwnerType.Platform
             ? PlatformSchema.Main
             : new ResourceRef(CustomerSchema.Type, ownerId);
-        if (await directory.DescribeAsync(owner, ct).ConfigureAwait(false) is null) throw new NotFoundException(owner.ToString());
+        // Group owners are platform-owned records (the platform, a customer), so this application's database answers; the
+        // engine is not read here, so an engine failure after the endpoint's check still yields "pending" (PRD, D5).
+        var ownerExists = ownerType == GroupOwnerType.Platform
+            ? ownerId == PlatformSchema.MainId
+            : await directory.CustomerExistsAsync(ownerId, ct).ConfigureAwait(false);
+        if (!ownerExists) throw new NotFoundException(owner.ToString());
 
         var group = Group.Create(ownerType, ownerId, name, actor.UserId, time.GetUtcNow(), id);
         groups.Add(group);
@@ -152,15 +158,19 @@ public sealed class AccessService(
 
     // ---- Shared -------------------------------------------------------------------------------------------------
 
-    private static string PermissionFor(string resourceType) => resourceType switch
+    /// <summary>
+    /// Every resource type has <c>manage_access</c> by definition (<see cref="AccessModel"/>); other types take no grants.
+    /// Before the model is loaded nothing can be decided, which is the engine being unavailable, not a bad request.
+    /// </summary>
+    private string PermissionFor(string resourceType)
     {
-        PlatformSchema.Type => PlatformSchema.Permissions.ManageAccess,
-        CustomerSchema.Type => CustomerSchema.Permissions.ManageAccess,
-        DomainSchema.Type => DomainSchema.Permissions.ManageAccess,
-        WalletSchema.Type => WalletSchema.Permissions.ManageAccess,
-        SubscriptionSchema.Type => SubscriptionSchema.Permissions.ManageAccess,
-        _ => throw new RuleViolationException(GrantRules.Codes.UnknownRelation, $"{resourceType} takes no direct grants."),
-    };
+        var model = accessModel.Current;
+        if (!model.IsLoaded)
+            throw new AuthorizationUnavailableException("AccessModel", "The access model has not been read from the engine yet.", isTransient: true);
+        return model.IsResourceType(resourceType)
+            ? AccessModel.ManageAccessPermission
+            : throw new RuleViolationException(GrantRules.Codes.UnknownRelation, $"{resourceType} takes no direct grants.");
+    }
 
     private async Task RequireAsync(Actor actor, string permission, ResourceRef resource, CancellationToken ct)
     {

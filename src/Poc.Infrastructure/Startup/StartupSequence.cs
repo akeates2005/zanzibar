@@ -27,11 +27,6 @@ public sealed partial class StartupSequence(
     RuntimeState state,
     ILogger<StartupSequence> logger) : IDisposable
 {
-    private static readonly string[] ObjectTypes =
-    [
-        PlatformSchema.Type, GroupSchema.Type, CustomerSchema.Type, DomainSchema.Type, WalletSchema.Type, SubscriptionSchema.Type,
-    ];
-
     private readonly SemaphoreSlim _running = new(1, 1);
 
     public void Dispose() => _running.Dispose();
@@ -48,11 +43,12 @@ public sealed partial class StartupSequence(
             await database.EnsureCreatedAsync(factory, ct).ConfigureAwait(false);
             await schema.WriteAsync(await File.ReadAllTextAsync(options.SchemaPath, ct).ConfigureAwait(false), ct).ConfigureAwait(false);
             // Object types and grantable roles come from what the engine now holds, not from constants (DECISIONS.md).
-            await accessModel.LoadAsync(ct).ConfigureAwait(false);
+            var model = await accessModel.LoadAsync(ct).ConfigureAwait(false);
 
             await projector.RunExclusiveAsync(async () =>
             {
-                foreach (var type in ObjectTypes)
+                // Every type that can hold tuples, as the engine reports it, so the reset is complete for every team's types.
+                foreach (var type in model.TypesWithRelations)
                     await tuples.DeleteAsync(new RelationshipFilter(type), ct).ConfigureAwait(false);
                 await PocDatabase.ClearAsync(factory, ct).ConfigureAwait(false);
 

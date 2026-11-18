@@ -82,7 +82,7 @@ A central service would need every team's release to change and redeploy it.
 - **Done when:** adding a type with grantable roles to `schema.zed` makes it appear in the API and the Access tab with no
   C# change, and a test proves it.
 
-### 4. Remove the group-scope duplication: Proposed, but revise the plan first
+### 4. Remove the group-scope duplication: In progress (unpaused 2026-11-18 to meet step 3's Done-when; engine walk, single scope rule and two-way test done, platform-admin duplication left)
 
 On 2026-11-15 Andrew paused this with "let's wait". The duplication:
 - the object's root customer is computed twice: `DescribeAsync` (`EfPorts.cs:61`) and `AncestorsAsync` (`EfQueries.cs:84`);

@@ -81,8 +81,9 @@ public sealed class EndpointDeclarationTests : ApiTestBase
         {
             var requirement = (AccessRequirement.OnResource)route.Requirement!;
             var types = requirement.Locator.FixedType is { } fixedType ? [fixedType] : ResourceTypes();
+            var model = Host.Services.GetRequiredService<AccessModelSource>().Current;
             foreach (var type in types)
-                Assert.True(SchemaCatalog.HasPermission(type, requirement.Permission), $"{route.Method} {route.Pattern} requires '{requirement.Permission}', which {type} does not define");
+                Assert.True(model.HasPermission(type, requirement.Permission), $"{route.Method} {route.Pattern} requires '{requirement.Permission}', which {type} does not define");
         }
     }
 

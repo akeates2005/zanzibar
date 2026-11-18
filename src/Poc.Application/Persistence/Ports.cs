@@ -35,20 +35,18 @@ public interface IGrantAuditStore
     Task<IReadOnlyList<GrantAuditEntry>> ForResourceAsync(ResourceRef resource, CancellationToken ct);
 }
 
-/// <summary>What the application database knows about an object, for the service rules.</summary>
-public sealed record ObjectInfo(string? RootCustomerId);
-
+/// <summary>
+/// Users and groups. Whether an object exists and where it sits come from the engine instead (<c>ObjectHierarchy</c>), so the
+/// grant rules work for every team's types.
+/// </summary>
 public interface IDirectoryStore
 {
     Task<bool> UserExistsAsync(string userId, CancellationToken ct);
 
     Task<Group?> FindGroupAsync(string groupId, CancellationToken ct);
 
-    /// <summary>
-    /// <c>null</c> if no such object exists. The root customer is the customer the object sits under (itself for a
-    /// customer); it is <c>null</c> for <c>platform:main</c>, which has none.
-    /// </summary>
-    Task<ObjectInfo?> DescribeAsync(ResourceRef resource, CancellationToken ct);
+    /// <summary>Customers are platform-owned records, so a group's owner is checked here rather than in the engine.</summary>
+    Task<bool> CustomerExistsAsync(string customerId, CancellationToken ct);
 }
 
 /// <summary>Records the ZedToken of the last tuple write on the row that owns it.</summary>

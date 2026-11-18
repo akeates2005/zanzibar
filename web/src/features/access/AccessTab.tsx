@@ -4,13 +4,14 @@ import { Link } from 'react-router-dom';
 
 import { grantAccess, revokeAccess, useCommand } from '../../api/commands';
 import { useEffectiveAccess, useGrantAudit, useGrantableGroups, useGrants, useTree } from '../../api/queries';
-import type { BreadcrumbDto, DirectoryUser, GrantTargetType, SubjectView } from '../../api/types';
+import { OBJECT_TYPES, type AccessTargetType, type BreadcrumbDto, type DirectoryUser, type SubjectView } from '../../api/types';
 import { EmptyState, QueryBoundary } from '../../components/common';
 import { UserPicker } from '../../components/pickers';
 import { describeSubject, formatDateTime, humanise, typeLabel } from '../../lib/format';
+import { objectHref } from '../../lib/resourcePath';
 
 interface Props {
-  type: GrantTargetType;
+  type: AccessTargetType;
   id: string;
   /** The object's permission map; its keys are the permissions the "Who can" panel may ask about. */
   permissions: Readonly<Record<string, boolean>>;
@@ -47,7 +48,7 @@ function Section({ title, children, testId }: { title: string; children: ReactNo
   );
 }
 
-function DirectGrants({ type, id }: { type: GrantTargetType; id: string }) {
+function DirectGrants({ type, id }: { type: AccessTargetType; id: string }) {
   const grants = useGrants(type, id);
   const revoke = useCommand(revokeAccess, { success: 'Access removed.' });
   return (
@@ -101,7 +102,7 @@ function DirectGrants({ type, id }: { type: GrantTargetType; id: string }) {
   );
 }
 
-function InheritedGrants({ type, id, ancestors }: { type: GrantTargetType; id: string; ancestors: readonly BreadcrumbDto[] }) {
+function InheritedGrants({ type, id, ancestors }: { type: AccessTargetType; id: string; ancestors: readonly BreadcrumbDto[] }) {
   const grants = useGrants(type, id);
   const tree = useTree();
   // A source is linked only if the user can open it: it appears in their tree or among this object's viewable ancestors.
@@ -137,7 +138,7 @@ function InheritedGrants({ type, id, ancestors }: { type: GrantTargetType; id: s
                       <Table.Td>{g.effect}</Table.Td>
                       <Table.Td>
                         {g.sourceType !== 'platform' && openable.has(`${g.sourceType}:${g.sourceId}`) ? (
-                          <Anchor component={Link} to={`/resources/${g.sourceType}/${g.sourceId}`}>
+                          <Anchor component={Link} to={objectHref(g.sourceType, g.sourceId, ['platform', ...OBJECT_TYPES])}>
                             {typeLabel(g.sourceType)}: {g.sourceName}
                           </Anchor>
                         ) : (
@@ -158,7 +159,7 @@ function InheritedGrants({ type, id, ancestors }: { type: GrantTargetType; id: s
   );
 }
 
-function AddGrant({ type, id }: { type: GrantTargetType; id: string }) {
+function AddGrant({ type, id }: { type: AccessTargetType; id: string }) {
   const grants = useGrants(type, id);
   const groups = useGrantableGroups(type, id);
   const [kind, setKind] = useState<'user' | 'group'>('user');
@@ -217,7 +218,7 @@ function AddGrant({ type, id }: { type: GrantTargetType; id: string }) {
   );
 }
 
-function WhoCan({ type, id, permissions }: { type: GrantTargetType; id: string; permissions: Readonly<Record<string, boolean>> }) {
+function WhoCan({ type, id, permissions }: { type: AccessTargetType; id: string; permissions: Readonly<Record<string, boolean>> }) {
   const names = Object.keys(permissions).sort();
   const [permission, setPermission] = useState<string | null>(null);
   const effective = useEffectiveAccess(type, id, permission);
@@ -250,7 +251,7 @@ function WhoCan({ type, id, permissions }: { type: GrantTargetType; id: string; 
   );
 }
 
-function Audit({ type, id }: { type: GrantTargetType; id: string }) {
+function Audit({ type, id }: { type: AccessTargetType; id: string }) {
   const audit = useGrantAudit(type, id);
   return (
     <Section title="Audit" testId="audit">
