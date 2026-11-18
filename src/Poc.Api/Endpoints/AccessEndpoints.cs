@@ -47,11 +47,11 @@ public static class AccessEndpoints
             .RequiresOn(PlatformSchema.Permissions.ManageAccess, Target).Produces<List<SubjectView>>();
 
         // The object is named in the body, so the handler (not the filter) checks manage_access on it.
-        api.MapPost("/access/explain", async (ExplainRequest body, AccessQueryService access, ResourceAccess guard, CurrentUser user, CancellationToken ct) =>
+        api.MapPost("/access/explain", async (ExplainRequest body, AccessQueryService access, ResourceAccess guard, CurrentUser user, AccessModelSource model, CancellationToken ct) =>
         {
             var type = Results2.Require(body.ResourceType, "resourceType");
             var id = Results2.Require(body.ResourceId, "resourceId");
-            if (!ResourceLocator.NamedTypes.Contains(type) || !IdOk(id)) throw new NotFoundException($"{type}:{id}");
+            if (!model.Current.IsResourceType(type) || !IdOk(id)) throw new NotFoundException($"{type}:{id}");
 
             var resource = new ResourceRef(type, id);
             await guard.RequireAsync(user.Actor, PlatformSchema.Permissions.ManageAccess, resource, ct);

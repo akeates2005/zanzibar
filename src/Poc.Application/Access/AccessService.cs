@@ -34,6 +34,7 @@ public sealed class AccessService(
     IUnitOfWork unitOfWork,
     IAuthorizationProjector projector,
     IAccessLog log,
+    AccessModelSource accessModel,
     TimeProvider time)
 {
     // ---- Grants on business objects -----------------------------------------------------------------------------
@@ -49,7 +50,7 @@ public sealed class AccessService(
         // Authorise first so an unauthorised caller learns nothing from validation messages.
         await RequireAsync(actor, PermissionFor(grant.Resource.Type), grant.Resource, ct).ConfigureAwait(false);
 
-        GrantRules.RequireGrantableRelation(grant.Resource.Type, grant.Relation);
+        GrantRules.RequireGrantableRelation(accessModel.Current, grant.Resource.Type, grant.Relation);
         GrantRules.RequireValidSubjectShape(grant.Subject);
 
         var info = await directory.DescribeAsync(grant.Resource, ct).ConfigureAwait(false)

@@ -17,20 +17,28 @@ public sealed class GrantRulesTests
 
     // ---- relations ----------------------------------------------------------------------------------------------
 
-    [Fact]
-    public void Grantable_relations_are_exactly_the_schemas_non_structural_relations()
-    {
-        // Fitness function: the table must track authz/schema.zed, so a new role cannot be added in one place only.
-        var schema = SchemaModel.Load();
-        var structural = new[] { "parent", "owner", "member" };
-        foreach (var type in new[] { "platform", "customer", "commerce/domain", "commerce/wallet", "commerce/subscription" })
-        {
-            var expected = schema.Types[type].Relations.Where(r => !structural.Contains(r)).Order();
-            Assert.Equal(expected, GrantableRelations.For(type).Order());
-        }
+    /// <summary>The model the app derives from authz/schema.zed (the integration tests prove the engine reflects the same).</summary>
+    private static readonly AccessModel Model = AccessModel.FromSchema(SchemaModel.Load().Definitions);
 
-        Assert.Empty(GrantableRelations.For("group")); // membership has its own command
-        Assert.Empty(GrantableRelations.For("user"));
+    [Fact]
+    public void Grantable_relations_derived_from_the_schema_are_exactly_the_agreed_roles()
+    {
+        // Fitness function: the subject-type rule must give the table that was hand-written before it was derived
+        // (DECISIONS.md, "Access model read from the engine"). A schema change that alters a role must change this test.
+        var expected = new Dictionary<string, string[]>
+        {
+            ["platform"] = ["administrator", "support"],
+            ["customer"] = ["administrator", "viewer"],
+            ["commerce/domain"] = ["administrator", "viewer"],
+            ["commerce/wallet"] = ["administrator", "spender", "viewer"],
+            ["commerce/subscription"] = ["administrator", "operator", "viewer"],
+        };
+        Assert.Equal(expected.Keys.Order(StringComparer.Ordinal), Model.ResourceTypes);
+        foreach (var (type, roles) in expected)
+            Assert.Equal(roles, Model.GrantableRelations(type));
+
+        Assert.Empty(Model.GrantableRelations("group")); // membership has its own command
+        Assert.Empty(Model.GrantableRelations("user"));
     }
 
     [Theory]
@@ -38,7 +46,7 @@ public sealed class GrantRulesTests
     [InlineData("commerce/wallet", "spender")]
     [InlineData("commerce/subscription", "operator")]
     [InlineData("platform", "support")]
-    public void A_grantable_relation_passes(string type, string relation) => GrantRules.RequireGrantableRelation(type, relation);
+    public void A_grantable_relation_passes(string type, string relation) => GrantRules.RequireGrantableRelation(Model, type, relation);
 
     [Theory]
     [InlineData("customer", "parent")]      // structural: only the projector writes it
@@ -51,7 +59,14 @@ public sealed class GrantRulesTests
     [InlineData("nonsense", "viewer")]
     public void Anything_else_is_refused_with_a_stable_code(string type, string relation)
     {
-        var ex = Assert.Throws<RuleViolationException>(() => GrantRules.RequireGrantableRelation(type, relation));
+        var ex = Assert.Throws<RuleViolationException>(() => GrantRules.RequireGrantableRelation(Model, type, relation));
+        Assert.Equal(GrantRules.Codes.UnknownRelation, ex.Code);
+    }
+
+    [Fact]
+    public void Before_a_schema_is_loaded_nothing_is_grantable()
+    {
+        var ex = Assert.Throws<RuleViolationException>(() => GrantRules.RequireGrantableRelation(AccessModel.Empty, "customer", "viewer"));
         Assert.Equal(GrantRules.Codes.UnknownRelation, ex.Code);
     }
 

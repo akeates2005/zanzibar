@@ -7,4 +7,7 @@ public interface ISchemaStore
 
     /// <summary>The stored schema text, or <c>null</c> if the engine holds no schema (for example after a restart).</summary>
     Task<string?> ReadAsync(CancellationToken ct);
+
+    /// <summary>The deployed schema's definitions, read fully consistent; empty if the engine holds no schema.</summary>
+    Task<IReadOnlyList<ReflectedDefinition>> ReflectAsync(CancellationToken ct);
 }

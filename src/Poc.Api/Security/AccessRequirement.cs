@@ -1,3 +1,4 @@
+using Poc.Application.Access;
 using Poc.Application.Authorization;
 using Poc.Application.Authorization.Schema;
 using Poc.Domain.Common;
@@ -17,25 +18,25 @@ public enum LocatorSource
 /// </summary>
 public sealed record ResourceLocator(string? FixedType, string? TypeKey, string? FixedId, string? IdKey, LocatorSource Source)
 {
-    /// <summary>Types a request may name for itself, where the type is not fixed by the route.</summary>
-    public static readonly IReadOnlyList<string> NamedTypes =
-        [PlatformSchema.Type, CustomerSchema.Type, DomainSchema.Type, WalletSchema.Type, SubscriptionSchema.Type];
-
     public static ResourceLocator Route(string type, string idKey = "id") => new(type, null, null, idKey, LocatorSource.Route);
 
     public static ResourceLocator QueryTyped(string typeKey, string idKey) => new(null, typeKey, null, idKey, LocatorSource.Query);
 
     public static ResourceLocator Platform { get; } = new(PlatformSchema.Type, null, PlatformSchema.MainId, null, LocatorSource.Route);
 
-    /// <summary>The object, or <c>null</c> when the request names an unknown type or a malformed id (which cannot exist).</summary>
-    public ResourceRef? Resolve(HttpRequest request)
+    /// <summary>
+    /// The object, or <c>null</c> when the request names an unknown type or a malformed id (which cannot exist). A type the
+    /// request names must be one of <paramref name="model"/>'s resource types.
+    /// </summary>
+    public ResourceRef? Resolve(HttpRequest request, AccessModel model)
     {
+        ArgumentNullException.ThrowIfNull(model);
         string? Read(string key) => Source == LocatorSource.Route
             ? request.RouteValues.TryGetValue(key, out var v) ? v?.ToString() : null
             : request.Query.TryGetValue(key, out var q) ? q.ToString() : null;
 
         var type = FixedType ?? (TypeKey is null ? null : Read(TypeKey));
-        if (type is null || (FixedType is null && !NamedTypes.Contains(type))) return null;
+        if (type is null || (FixedType is null && !model.IsResourceType(type))) return null;
 
         var id = FixedId ?? (IdKey is null ? null : Read(IdKey));
         // A malformed id cannot exist, so it is "not found" without bothering the engine.

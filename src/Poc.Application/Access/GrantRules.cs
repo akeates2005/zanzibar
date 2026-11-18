@@ -22,11 +22,12 @@ public static class GrantRules
     }
 
     /// <summary>A grant must name a relation that exists and is assignable on that object type.</summary>
-    public static void RequireGrantableRelation(string resourceType, string relation)
+    public static void RequireGrantableRelation(AccessModel model, string resourceType, string relation)
     {
-        if (!GrantableRelations.IsGrantable(resourceType, relation))
+        ArgumentNullException.ThrowIfNull(model);
+        if (!model.IsGrantable(resourceType, relation))
             throw new RuleViolationException(Codes.UnknownRelation,
-                $"'{relation}' is not a grantable relation on {resourceType}. Allowed: {string.Join(", ", GrantableRelations.For(resourceType))}.");
+                $"'{relation}' is not a grantable relation on {resourceType}. Allowed: {string.Join(", ", model.GrantableRelations(resourceType))}.");
     }
 
     /// <summary>The relations accept a user or a group's members, and nothing else.</summary>

@@ -16,8 +16,8 @@ public sealed class AccessFilterTests
         http.RequestServices = new ServiceCollection().AddLogging().AddOptions().BuildServiceProvider();
         if (endpoint is not null) http.SetEndpoint(endpoint);
 
-        // The filter must refuse before it ever needs the authoriser or a user, so none are supplied.
-        var filter = new AccessFilter(null!, null!, NullLogger<AccessFilter>.Instance);
+        // The filter must refuse before it ever needs the authoriser, a user or the access model, so none are supplied.
+        var filter = new AccessFilter(null!, null!, null!, NullLogger<AccessFilter>.Instance);
         var result = await filter.InvokeAsync(
             new DefaultEndpointFilterInvocationContext(http), _ => next?.Invoke() ?? ValueTask.FromResult<object?>("handler ran"));
 

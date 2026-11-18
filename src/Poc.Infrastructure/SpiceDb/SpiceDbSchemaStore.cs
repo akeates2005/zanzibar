@@ -32,4 +32,31 @@ public sealed class SpiceDbSchemaStore(SpiceDbConnection connection) : ISchemaSt
                 return null;
             }
         }, ct);
+
+    public Task<IReadOnlyList<ReflectedDefinition>> ReflectAsync(CancellationToken ct) =>
+        connection.RunAsync<IReadOnlyList<ReflectedDefinition>>("ReflectSchema", async deadline =>
+        {
+            try
+            {
+                var response = await connection.Schema
+                    .ReflectSchemaAsync(new Az.ReflectSchemaRequest { Consistency = SpiceDbConnection.FullyConsistent }, deadline: deadline, cancellationToken: ct)
+                    .ResponseAsync.ConfigureAwait(false);
+                return response.Definitions.Select(ToDefinition).ToList();
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+            {
+                return [];
+            }
+        }, ct);
+
+    private static ReflectedDefinition ToDefinition(Az.ReflectionDefinition definition) => new(
+        definition.Name,
+        definition.Relations.Select(r => new ReflectedRelation(r.Name, r.SubjectTypes.Select(ToAllowedSubject).ToList())).ToList(),
+        definition.Permissions.Select(p => p.Name).ToList());
+
+    private static AllowedSubject ToAllowedSubject(Az.ReflectionTypeReference type) => new(
+        type.SubjectDefinitionName,
+        type.HasOptionalRelationName && type.OptionalRelationName.Length > 0 ? type.OptionalRelationName : null,
+        type.HasIsPublicWildcard && type.IsPublicWildcard,
+        type.OptionalCaveatName.Length > 0 ? type.OptionalCaveatName : null);
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Poc.Application.Access;
 using Poc.Application.Authorization;
 using Poc.Application.Authorization.Schema;
 using Poc.Infrastructure.Persistence;
@@ -19,6 +20,7 @@ public sealed partial class StartupSequence(
     PocDatabase database,
     IDbContextFactory<PocDbContext> factory,
     ISchemaStore schema,
+    AccessModelSource accessModel,
     IRelationshipStore tuples,
     OutboxProjector projector,
     IServiceScopeFactory scopes,
@@ -45,6 +47,8 @@ public sealed partial class StartupSequence(
             await WaitForEngineAsync(ct).ConfigureAwait(false);
             await database.EnsureCreatedAsync(factory, ct).ConfigureAwait(false);
             await schema.WriteAsync(await File.ReadAllTextAsync(options.SchemaPath, ct).ConfigureAwait(false), ct).ConfigureAwait(false);
+            // Object types and grantable roles come from what the engine now holds, not from constants (DECISIONS.md).
+            await accessModel.LoadAsync(ct).ConfigureAwait(false);
 
             await projector.RunExclusiveAsync(async () =>
             {

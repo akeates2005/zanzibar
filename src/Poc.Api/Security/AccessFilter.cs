@@ -1,3 +1,4 @@
+using Poc.Application.Access;
 using Poc.Application.Common;
 
 namespace Poc.Api.Security;
@@ -6,7 +7,7 @@ namespace Poc.Api.Security;
 /// Enforces every endpoint's declared <see cref="AccessRequirement"/>. An endpoint with no declaration is refused, never
 /// allowed: failing to declare access must fail closed.
 /// </summary>
-public sealed partial class AccessFilter(ResourceAccess access, CurrentUser user, ILogger<AccessFilter> logger) : IEndpointFilter
+public sealed partial class AccessFilter(ResourceAccess access, CurrentUser user, AccessModelSource accessModel, ILogger<AccessFilter> logger) : IEndpointFilter
 {
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
@@ -31,7 +32,7 @@ public sealed partial class AccessFilter(ResourceAccess access, CurrentUser user
                 return await next(context).ConfigureAwait(false);
 
             case AccessRequirement.OnResource requirement:
-                var resource = requirement.Locator.Resolve(http.Request);
+                var resource = requirement.Locator.Resolve(http.Request, accessModel.Current);
                 if (resource is null) return NotFound();
                 switch (await access.EvaluateAsync(user.Actor, requirement.Permission, resource.Value, ct).ConfigureAwait(false))
                 {

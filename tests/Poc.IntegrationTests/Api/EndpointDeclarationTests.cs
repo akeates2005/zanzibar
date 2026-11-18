@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Poc.Api.Security;
+using Poc.Application.Access;
 using Poc.Application.Authorization;
 
 namespace Poc.IntegrationTests.Api;
@@ -31,6 +32,17 @@ public sealed class EndpointDeclarationTests : ApiTestBase
         .SelectMany(e => (e.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? ["GET"])
             .Select(m => new Route(e, e.RoutePattern.RawText!, m, e.Metadata.GetMetadata<AccessRequirement>())))
         .OrderBy(r => r.Pattern, StringComparer.Ordinal).ThenBy(r => r.Method, StringComparer.Ordinal).ToList();
+
+    /// <summary>
+    /// The types a request may name, as the running app derived them from the engine at start-up. Checked against
+    /// <see cref="SampleIds"/>, never empty: an empty model would let every sweep below pass while checking nothing.
+    /// </summary>
+    private IReadOnlyList<string> ResourceTypes()
+    {
+        var types = Host.Services.GetRequiredService<AccessModelSource>().Current.ResourceTypes;
+        Assert.Equal(SampleIds.Keys.Where(k => k != "group").Order(StringComparer.Ordinal), types);
+        return types;
+    }
 
     private static IEnumerable<Route> ApiRoutes(IEnumerable<Route> routes) => routes.Where(r => r.Pattern.StartsWith("/api", StringComparison.Ordinal));
 
@@ -68,7 +80,7 @@ public sealed class EndpointDeclarationTests : ApiTestBase
         foreach (var route in Routes().Where(r => r.Requirement is AccessRequirement.OnResource))
         {
             var requirement = (AccessRequirement.OnResource)route.Requirement!;
-            var types = requirement.Locator.FixedType is { } fixedType ? [fixedType] : ResourceLocator.NamedTypes;
+            var types = requirement.Locator.FixedType is { } fixedType ? [fixedType] : ResourceTypes();
             foreach (var type in types)
                 Assert.True(SchemaCatalog.HasPermission(type, requirement.Permission), $"{route.Method} {route.Pattern} requires '{requirement.Permission}', which {type} does not define");
         }
@@ -158,9 +170,9 @@ public sealed class EndpointDeclarationTests : ApiTestBase
     }
 
     /// <summary>Concrete URLs for a route: its id parameter set to a real object, once per type for type-in-the-route endpoints.</summary>
-    private static IEnumerable<string> Urls(Route route, ResourceLocator locator)
+    private IEnumerable<string> Urls(Route route, ResourceLocator locator)
     {
-        IEnumerable<string> types = locator.FixedType is { } t ? [t] : ResourceLocator.NamedTypes;
+        IEnumerable<string> types = locator.FixedType is { } t ? [t] : ResourceTypes();
         foreach (var type in types)
         {
             var url = route.Pattern;

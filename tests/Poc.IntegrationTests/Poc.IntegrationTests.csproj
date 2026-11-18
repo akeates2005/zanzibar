@@ -21,5 +21,7 @@
     <!-- The real schema and the real matrix, so tests run against exactly what ships. -->
     <None Include="..\..\authz\schema.zed" Link="authz\schema.zed" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\authz\validation.yaml" Link="authz\validation.yaml" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The unit tests' schema reader, so SchemaReflectionTests can prove it reads schema.zed the way the engine reflects it. -->
+    <Compile Include="..\Poc.UnitTests\Authorization\SchemaModel.cs" Link="Shared\SchemaModel.cs" />
   </ItemGroup>
 </Project>

@@ -50,6 +50,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IDirectoryQueries, EfDirectoryQueries>();
         services.AddScoped<CommerceService>();
         services.AddScoped<ObjectReadService>();
+        services.AddSingleton<AccessModelSource>();
         services.AddScoped<AccessQueryService>();
         services.AddScoped<AccessService>();
         services.AddScoped<DefaultGrantPolicy>();

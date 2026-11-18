@@ -64,7 +64,7 @@ Each of these is its own increment, ending green:
   record them as deviations.
 - **Needs step 1** to prove anything that touches Postgres.
 
-### 3. Read types, roles and id rules from the deployed schema: Proposed (D8 open items)
+### 3. Read types, roles and id rules from the deployed schema: In progress (agreed 2026-11-18; D8 open items)
 
 Today three things are hard-coded for this one app:
 - the known object types: `ResourceLocator.NamedTypes` (`src/Poc.Api/Security/AccessRequirement.cs:21`);

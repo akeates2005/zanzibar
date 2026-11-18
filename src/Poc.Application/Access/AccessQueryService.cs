@@ -17,7 +17,8 @@ public sealed class AccessQueryService(
     IGrantAuditStore audit,
     IDirectoryQueries directory,
     ICommerceQueries commerce,
-    IAuthorizer authorizer)
+    IAuthorizer authorizer,
+    AccessModelSource accessModel)
 {
     private const string AdminEffect = "admin";
     private const string ViewEffect = "view";
@@ -25,10 +26,11 @@ public sealed class AccessQueryService(
     /// <summary>Direct grants on the object, plus each ancestor's administrators and the platform's support subjects.</summary>
     public async Task<GrantsView> GrantsAsync(ResourceRef resource, CancellationToken ct)
     {
+        var model = accessModel.Current;
         var direct = new List<Relationship>();
         foreach (var tuple in await tuples.ReadAsync(new RelationshipFilter(resource.Type, resource.Id), ct).ConfigureAwait(false))
         {
-            if (GrantableRelations.IsGrantable(resource.Type, tuple.Relation)) direct.Add(tuple);
+            if (model.IsGrantable(resource.Type, tuple.Relation)) direct.Add(tuple);
         }
 
         var inheritedSources = new List<(ObjectSummary Source, Relationship Tuple, string Effect)>();
@@ -65,7 +67,7 @@ public sealed class AccessQueryService(
             .Select(i => new InheritedGrantView(i.Tuple.Relation, i.Effect, subjects[i.Tuple.Subject], i.Source.Type, i.Source.Id, i.Source.Name))
             .OrderBy(g => g.SourceType, StringComparer.Ordinal).ThenBy(g => g.Relation, StringComparer.Ordinal).ThenBy(g => g.Subject.DisplayName, StringComparer.Ordinal).ToList();
 
-        return new GrantsView(directViews, inheritedViews, GrantableRelations.For(resource.Type));
+        return new GrantsView(directViews, inheritedViews, model.GrantableRelations(resource.Type));
     }
 
     /// <summary>Every user who holds the permission, however they got it: directly, through groups, or by inheritance.</summary>
@@ -124,7 +126,7 @@ public sealed class AccessQueryService(
 
         var where = new List<Relationship>();
         var asSubject = new SubjectFilter(GroupSchema.Type, groupId, GroupSchema.Relations.Member);
-        foreach (var type in GrantableRelations.ResourceTypes.Append(GroupSchema.Type))
+        foreach (var type in accessModel.Current.ResourceTypes.Append(GroupSchema.Type))
             where.AddRange(await tuples.ReadAsync(new RelationshipFilter(type, Subject: asSubject), ct).ConfigureAwait(false));
 
         var names = (await commerce.GetSummariesAsync(where.Where(w => w.Resource.Type != GroupSchema.Type).Select(w => w.Resource), ct).ConfigureAwait(false))

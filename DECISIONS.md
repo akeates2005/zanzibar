@@ -277,3 +277,44 @@ and `group`, and each app team owning its own resource types (see the 2026-11-15
 - **Proven by two tests that take the port on purpose** (`NativeSpiceDbHostTests`). Mutation-checked: with one attempt
   the retry test fails; with connect-only readiness both fail, the fixed-port test because the harness reported the
   thief's listener as a ready engine.
+
+## Access model read from the engine (NEXT-STEPS step 3, first increment, 2026-11-18)
+
+**What changed.** The object types a request may name (`ResourceLocator.NamedTypes`) and the grantable roles per type
+(`GrantableRelations`) were hand-written tables. Both are gone. At start-up, right after writing the schema, the app calls
+SpiceDB `SchemaService/ReflectSchema` (fully consistent) and derives an `AccessModel` from what the engine holds
+(`src/Poc.Application/Access/AccessModel.cs`, adapter in `SpiceDbSchemaStore.ReflectAsync`). Access values are unchanged:
+the derived table equals the old one exactly, asserted against the engine (`SchemaReflectionTests`) and in unit tests.
+
+**The rules (decided under delegated design authority; refine the 2026-11-17 proposal above):**
+- A **resource type** is `platform`, or a definition with a `parent` relation and a `manage_access` permission.
+- A **grantable relation** is a relation *of a resource type* whose every allowed subject is `user` or `group#member`,
+  with no wildcard and no caveat. Restricting it to resource types is what keeps `group#member` out: that relation is
+  person-shaped, but groups take no grants (membership has its own command). The 2026-11-17 note says this; the
+  `NEXT-STEPS.md` summary ("It does") left it out.
+- **Wildcards and caveats are not roles** (fail closed): the grant command writes a concrete subject with no caveat
+  context, so offering such a relation would produce grants that do not mean what the screen says.
+- **Before the model is loaded it is empty**, so no named type resolves (404) and nothing is grantable (422). The API is
+  not served before then anyway: `ReadinessMiddleware` answers 503 until start-up finishes. Recovery after schema loss
+  reruns start-up, which reloads the model.
+- **An injected singleton (`AccessModelSource`), not a static**: statics are shared across parallel test hosts.
+
+**Observed on SpiceDB v1.57.1 with Authzed.Net 1.6.0 (spike and tests, 2026-11-18):** ReflectSchema returns every
+definition with relations, their subject types (`optionalRelationName`, `isPublicWildcard`, `optionalCaveatName`) and
+permissions, in declaration order; a wildcard and a caveated subject type are reported as such; an engine with no schema
+reflects no definitions. The test suite's schema reader now also parses subject types, and a test proves it reads
+`schema.zed` exactly as the engine reflects it, so engine-free tests can use it.
+
+**Checked by mutation:** wildcards counted as people (unit theory fails), the adapter dropping caveats (the
+private-engine reflection test fails), start-up not loading the model (start-up's seed grants are refused, so no API
+test host starts; that run hung rather than failing fast and was stopped, with no processes left behind).
+
+**Not done or not verified:**
+- Still hard-coded elsewhere, so "add a type to `schema.zed`, no C# change" is **not yet true** at the API: the
+  permission catalogue (`SchemaCatalog`, read from the C# constants), `AccessService.PermissionFor` (a switch per type),
+  `AccessQueryService.InheritedRelations`, and `StartupSequence.ObjectTypes`. The model-level version is proven
+  (`A_type_added_to_the_deployed_schema_appears_in_the_model...`, against a real engine).
+- Ids are still checked with `EntityId.Validate`. The SpiceDB binary contains several id patterns, and which one governs
+  object ids was not confirmed; they accept `*`, which the API must never accept as an object id.
+- Not tested: whether ReflectSchema returns doc comments (`schema.zed` has none), and how relations with SpiceDB's
+  expiration trait are reflected (this proto has no field for it).
