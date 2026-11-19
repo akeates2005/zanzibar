@@ -1,49 +1,33 @@
 import { Anchor, Badge, Button, Card, Group, List, NativeSelect, SegmentedControl, Stack, Table, Text, Title } from '@mantine/core';
 import { useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { addGroupMember, createGroup, deleteGroup, removeGroupMember, useCommand } from '../../api/commands';
-import { useGroup, useGroups, useMe, useObject } from '../../api/queries';
+import { useGroup, useGroups } from '../../api/queries';
 import type { DirectoryUser, GroupSummary } from '../../api/types';
-import { ActionButton, EmptyState, PageTitle, QueryBoundary } from '../../components/common';
+import { ActionButton, EmptyState, QueryBoundary } from '../../components/common';
 import { UserPicker } from '../../components/pickers';
 import { describeSubject, typeLabel } from '../../lib/format';
 import { ConfirmModal, TextPromptModal } from '../resources/dialogs';
 
-/** `/customers/:id/groups` and `/platform/groups`: create groups, manage members and nesting, see where a group is granted. */
-export function GroupsPage({ platform }: { platform: boolean }) {
-  return platform ? <PlatformGroups /> : <CustomerGroups />;
-}
-
-function PlatformGroups() {
-  const me = useMe();
-  return (
-    <QueryBoundary query={me} notFoundWhat="The platform">
-      {(profile) => (
-        <GroupsBody customerId={null} title="Platform groups" createPermissions={profile.platformPermissions} back={null} />
-      )}
-    </QueryBoundary>
-  );
-}
-
-function CustomerGroups() {
+/**
+ * The old Groups URLs (`/customers/:id/groups`, `/platform/groups`, PRD screen table) now open the owner's Groups tab.
+ * The selected group (`?group=`) is carried over, so a bookmarked group still opens.
+ */
+export function GroupsRedirect({ platform }: { platform: boolean }) {
   const { id = '' } = useParams();
-  // The permission to create a group comes from the owner: here, the customer's own permission map.
-  const customer = useObject('customer', id);
-  return (
-    <QueryBoundary query={customer} notFoundWhat="This customer">
-      {(c) => (
-        <GroupsBody customerId={id} title={`Groups of ${c.name}`} createPermissions={c.permissions} back={{ to: `/resources/customer/${id}`, label: 'Back to the customer' }} />
-      )}
-    </QueryBoundary>
-  );
+  const { search } = useLocation();
+  const to = platform ? '/resources/platform/main/groups' : `/resources/customer/${id}/groups`;
+  return <Navigate to={`${to}${search}`} replace />;
 }
 
-function GroupsBody({ customerId, title, createPermissions, back }: {
+/**
+ * The Groups tab of a customer (`customerId`) or of the platform (`null`): create groups, manage members and nesting,
+ * see where a group is granted. The permission to create a group comes from the owner's own permission map.
+ */
+export function GroupsTab({ customerId, createPermissions }: {
   customerId: string | null;
-  title: string;
   createPermissions: Readonly<Record<string, boolean>>;
-  back: { to: string; label: string } | null;
 }) {
   const [params, setParams] = useSearchParams();
   const selected = params.get('group');
@@ -59,15 +43,9 @@ function GroupsBody({ customerId, title, createPermissions, back }: {
 
   return (
     <Stack>
-      {back ? (
-        <Anchor component={Link} to={back.to} size="sm">
-          {back.label}
-        </Anchor>
-      ) : null}
-      <PageTitle
-        title={title}
-        actions={<ActionButton label="New group" permission="create_group" permissions={createPermissions} onClick={() => { setCreating(true); }} />}
-      />
+      <Group justify="flex-end">
+        <ActionButton label="New group" permission="create_group" permissions={createPermissions} onClick={() => { setCreating(true); }} />
+      </Group>
       <Group align="flex-start" gap="lg" wrap="wrap">
         <Card withBorder padding="md" w={280} data-testid="group-list">
           <QueryBoundary query={groups} notFoundWhat="This group list">

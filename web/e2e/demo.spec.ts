@@ -34,7 +34,7 @@ test('demo step 4: the nesting cycle is refused, removing a nested group takes H
 
   await switchTo(page, 'alice');
   await page.goto('/resources/customer/acme');
-  await page.getByRole('link', { name: 'Groups of this customer' }).click();
+  await page.getByRole('tab', { name: 'Groups' }).click();
   await page.getByRole('list', { name: 'Groups' }).getByRole('link', { name: 'UK contractors' }).click();
 
   // adding UK IT inside UK contractors would close a loop

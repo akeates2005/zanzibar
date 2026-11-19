@@ -15,6 +15,13 @@ describe('parseResourcePath', () => {
     expect(parseResourcePath('commerce/wallet/uk-ops/access', TYPES)).toEqual({ type: 'commerce/wallet', id: 'uk-ops', tab: 'access' });
   });
 
+  it('reads the groups tab on the types that own groups, and only those', () => {
+    expect(parseResourcePath('customer/acme/groups', TYPES)).toEqual({ type: 'customer', id: 'acme', tab: 'groups' });
+    expect(parseResourcePath('platform/main/groups', TYPES)).toEqual({ type: 'platform', id: 'main', tab: 'groups' });
+    expect(parseResourcePath('commerce/domain/acme-uk/groups', TYPES)).toBeNull();
+    expect(parseResourcePath('commerce/wallet/uk-ops/groups', TYPES)).toBeNull();
+  });
+
   it('treats an id called "access" as an id, not as the tab', () => {
     expect(parseResourcePath('customer/access', TYPES)).toEqual({ type: 'customer', id: 'access', tab: 'details' });
   });

@@ -15,7 +15,7 @@ import {
   useMantineColorScheme,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconHierarchy2, IconMoon, IconSearch, IconServerCog, IconShieldLock, IconSun, IconUsersGroup, type Icon } from '@tabler/icons-react';
+import { IconHierarchy2, IconMoon, IconSearch, IconServerCog, IconShieldLock, IconSun, type Icon } from '@tabler/icons-react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { useMe } from '../api/queries';
@@ -63,10 +63,11 @@ export function Shell() {
 
   const items: NavItem[] = [
     { to: '/resources', label: 'Resources', icon: IconHierarchy2, show: true },
-    { to: '/platform/groups', label: 'Platform groups', icon: IconUsersGroup, show: platform?.view === true },
     { to: '/explorer', label: 'Explorer', icon: IconSearch, show: true },
     { to: '/system', label: 'System', icon: IconServerCog, show: platform?.admin === true },
-  ];
+  ].filter((item) => item.show);
+  // Platform groups is the platform's Groups tab, reached through Resources, so it has no item here.
+  const isActive = (to: string): boolean => pathname === to || pathname.startsWith(`${to}/`);
 
   return (
     <AppShell header={{ height: 60 }} navbar={{ width: 248, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="lg">
@@ -88,16 +89,14 @@ export function Shell() {
       <AppShell.Navbar p="sm">
         <AppShell.Section grow component="nav" aria-label="Main">
           <Stack gap={4}>
-            {items
-              .filter((item) => item.show)
-              .map(({ to, label, icon: Glyph }) => (
+            {items.map(({ to, label, icon: Glyph }) => (
                 <MantineNavLink
                   key={to}
                   component={Link}
                   to={to}
                   label={label}
-                  active={pathname === to || pathname.startsWith(`${to}/`)}
-                  aria-current={pathname === to || pathname.startsWith(`${to}/`) ? 'page' : undefined}
+                  active={isActive(to)}
+                  aria-current={isActive(to) ? 'page' : undefined}
                   leftSection={<Glyph size={18} stroke={1.75} />}
                   variant="light"
                   onClick={close}

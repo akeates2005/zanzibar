@@ -5,7 +5,7 @@ import { NotFoundPanel } from './components/common';
 import { Shell } from './components/Shell';
 import { AccessPage } from './features/access/AccessPage';
 import { ExplorerPage } from './features/explorer/ExplorerPage';
-import { GroupsPage } from './features/groups/GroupsPage';
+import { GroupsRedirect } from './features/groups/GroupsTab';
 import { ResourceBrowser } from './features/resources/ResourceBrowser';
 import { ResourceDetail } from './features/resources/ObjectDetail';
 import { SystemPage } from './features/system/SystemPage';
@@ -20,8 +20,9 @@ export function App() {
         <Route path="/resources/*" element={<ResourceDetail />} />
         {/* Any resource type, named in the query string as the API names it: another team's type has no page of its own. */}
         <Route path="/access" element={<AccessPage />} />
-        <Route path="/customers/:id/groups" element={<GroupsPage platform={false} />} />
-        <Route path="/platform/groups" element={<GroupsPage platform />} />
+        {/* Groups are a tab of their owner now; the PRD's URLs still work and open that tab. */}
+        <Route path="/customers/:id/groups" element={<GroupsRedirect platform={false} />} />
+        <Route path="/platform/groups" element={<GroupsRedirect platform />} />
         <Route path="/explorer" element={<ExplorerPage />} />
         <Route path="/system" element={<SystemPage />} />
         <Route path="*" element={<NotFoundPanel />} />

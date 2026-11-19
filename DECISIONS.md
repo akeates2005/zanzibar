@@ -14,6 +14,7 @@ Choices made where PRD.md is silent or where the environment forced a deviation.
 | D6 | Phase 5 exit: "The five Playwright journeys pass against Compose" | The five journeys pass against the **native stack** (SpiceDB, stub issuer, API, built client) in the installed Google Chrome; Playwright starts and stops all four processes and never reuses a running one | Docker is unavailable (D2, D3), so Compose cannot run. The journeys, the browser and every process are the real ones; only the way the four services are started differs. Running them against Compose once Docker exists is a change to `playwright.config.ts`'s `webServer` block, not to any journey. |
 | D7 | Phase 6 exit: "`docker compose up` from a clean clone reaches a working application with no manual step" | **Not verified.** The Dockerfiles and the full Compose file are written and pass static checks, and everything about them except the container runtime is exercised natively, but no image has ever been built or run | Docker is unavailable (D2, D3). What *is* proven: `scripts/check-compose.py` enforces the file's invariants (localhost-only ports, pinned SpiceDB, telemetry off, no baked secrets, non-root images, the API's authority equal to the name tokens carry), and `npm run e2e:published` runs ten browser journeys against the same `dotnet publish` output the image contains, serving the built client, in Production, with every setting from the environment and the issuer reached by a different name than its tokens carry. What is **not** proven: that the images build, that the base-image tags resolve as expected on the target, that the container user can read its files, and that service start order and networking behave. These are the first things to check when Docker is available. |
 | D8 | Object types `domain`, `wallet`, `subscription`; the API names the object in the path (`/access/{type}/{id}/grants`, `/{parentType}/{id}/children`) | **`commerce/domain`, `commerce/wallet`, `commerce/subscription`**; the API names the object in the query string (`/access/grants?type=&id=`, `/children?type=&id=`) | Agreed with Andrew on 2026-11-17, as preparation for a shared, multi-team engine. Access values are unchanged; the matrix cells are renamed, not altered (PRD rule 4). See "Team-prefixed object types" below. |
+| D9 | Groups is a screen of its own at `/customers/{id}/groups` and `/platform/groups` (Screens table), reached by a link | Groups is a **tab** on the customer and on the platform, beside Details and Access, at `/resources/customer/{id}/groups` and `/resources/platform/main/groups`. The PRD's URLs redirect there and keep `?group=` | Asked for by Andrew on 2026-11-19. The screen's content and its permissions (`view` on the owner; edit controls need `manage`) are unchanged. See "Groups as a tab" below. |
 
 The integration test fixture will sit behind an interface so it can start a native SpiceDB process now and swap to Testcontainers later without changing tests.
 
@@ -489,6 +490,11 @@ zed's parser decided; zed rejects many of these strings client-side before sendi
 - `ResourceBrowser.tsx`: each row has a tinted icon and a coloured type badge, with indent guide lines and a hover
   highlight. Indents are narrower on a phone.
 - `web/public/favicon.svg`: Vite answered `/favicon.ico` with 404, which showed up as a console error.
+- `scrollbar-gutter: stable` on the root (`index.css`). Andrew saw the content shift when switching tabs. Measured in
+  headed Chrome at 1400x900: the Access tab is taller than the window, so a 15px scrollbar came and went, the content
+  width changed between 1112 and 1097px, and every right-aligned control moved. With the gutter reserved, the width stays
+  1097px, and the page actions and header toggle stay put across Details, Access and Groups, for the platform (priya)
+  and a customer (alice).
 
 **Decided under delegated design authority**
 - **The user switcher stays a native `<select>`.** `e2e/support.ts:56` drives it with `selectOption`, and a select is the
@@ -511,3 +517,44 @@ zed's parser decided; zed rejects many of these strings client-side before sendi
 - The ObjectDetail, Groups, Explorer and System pages were checked only in the earlier screenshots (Explorer) or not at
   all. They inherit the theme but their layout is unchanged.
 - No accessibility audit (contrast of the light badges in dark mode was judged by eye only).
+
+## Groups as a tab of their owner (2026-11-19, D9)
+
+**Asked by Andrew:** move "Groups of this customer" and "Platform groups" from links on the Details tab to tabs on the
+customer and platform pages.
+
+**What changed**
+- `parseResourcePath` reads a `groups` tab, but only for the types that own groups (`GROUP_OWNER_TYPES`: `platform` and
+  `customer`). On a domain, wallet or subscription, `/groups` is "Not found".
+- `ObjectDetail` (customer) and `PlatformPage` have a Groups tab. Its body is `GroupsTab` (renamed from `GroupsPage`),
+  which no longer has its own page title or back link. The links on the Details tabs are gone.
+- `/customers/:id/groups` and `/platform/groups` are `GroupsRedirect`s to the tab, keeping the query string.
+- The sidebar's "Platform groups" item is removed (Andrew, same day): it is now the platform's Groups tab, reached
+  through Resources. This replaces the Phase 5 note above that Platform groups is a nav link shown only with platform
+  `view`. The tab itself needs platform `view`, because the platform page does.
+- `e2e/demo.spec.ts` step 4 clicks the Groups tab instead of the removed link.
+
+**Decided under delegated design authority**
+- **The Groups tab shows for anyone who can open the owner.** That matches the PRD's rule for the screen (`view` on the
+  owner); the list itself shows only the groups the API returns.
+- **The old URLs redirect rather than 404,** so links and bookmarks to the PRD's routes keep working.
+
+**Proven**
+- `resourcePath.test.ts`: the tab is read for customer and platform and refused for domain and wallet.
+  Mutation-checked: allowing it for any type fails that test.
+- In Chrome against the running app:
+  - Alice: the customer's tabs are Details, Access, Groups, with no "Groups of this customer" link. A group created and
+    then deleted from the tab leaves her on the Groups tab.
+  - `/customers/acme/groups?group=uk-it` lands on `/resources/customer/acme/groups?group=uk-it`, with UK IT open.
+  - Priya: the sidebar lists Resources, Explorer and System. On `/resources/platform/main/groups` "Resources" is the
+    current item, and the platform's Details tab has no groups link.
+  - `/platform/groups` redirects to the same place.
+  - Domain tabs are Details and Access.
+
+  - At 390px wide the three tabs and the page actions fit, and the page does not scroll sideways.
+
+**Seen, not changed**
+- Deleting a group triggers one `GET /api/groups/{id}` that answers 404, because the deleted group is refetched. The
+  previous commit (`b1d5715`) does the same through the old route, so this is not new.
+- At 390px a long "Remove …" button in the group's Members table runs past the card's edge. The table's layout is
+  unchanged by this work.

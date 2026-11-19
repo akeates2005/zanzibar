@@ -21,6 +21,7 @@ import { formatDateTime, formatMoney, typeLabel } from '../../lib/format';
 import { objectHref, parseResourcePath, type ResourcePath } from '../../lib/resourcePath';
 import { moveTargets } from '../../lib/tree';
 import { AccessTab } from '../access/AccessTab';
+import { GroupsTab } from '../groups/GroupsTab';
 import { PlatformPage } from '../platform/PlatformPage';
 import { AmountModal, ConfirmModal, MoveWalletModal, QuantityModal, SubscriptionModal, TextPromptModal } from './dialogs';
 
@@ -30,7 +31,7 @@ const CHILD_LABEL: Partial<Record<ObjectType, string>> = { customer: 'Domains', 
 
 export const linkTo = (type: string, id: string): string => `/resources/${type}/${id}`;
 
-/** Route `/resources/*`: `{type}/{id}` or `{type}/{id}/access`, where the type may itself contain a slash. */
+/** Route `/resources/*`: `{type}/{id}`, `{type}/{id}/access` or `{type}/{id}/groups`; the type may contain a slash. */
 export function ResourceDetail() {
   const { '*': rest = '' } = useParams();
   const path = parseResourcePath(rest, ['platform', ...OBJECT_TYPES]);
@@ -103,8 +104,9 @@ function ObjectDetail({ type, id, tab }: { type: ObjectType; id: string; tab: Re
 
 function ObjectView({ type, id, object, tab }: { type: ObjectType; id: string; object: ObjectDto; tab: ResourcePath['tab'] }) {
   const navigate = useNavigate();
-  const onAccessTab = tab === 'access';
   const canManageAccess = object.permissions.manage_access === true;
+  const hasGroups = type === 'customer';
+  const current = tab === 'access' && canManageAccess ? 'access' : tab === 'groups' && hasGroups ? 'groups' : 'details';
   const name = nameOf(object);
 
   return (
@@ -112,13 +114,14 @@ function ObjectView({ type, id, object, tab }: { type: ObjectType; id: string; o
       <Crumbs ancestors={object.ancestors} />
       <PageTitle title={name} badge={typeLabel(type)} actions={<Actions type={type} id={id} object={object} />} />
       <Tabs
-        value={onAccessTab && canManageAccess ? 'access' : 'details'}
-        onChange={(value) => { void navigate(value === 'access' ? `${linkTo(type, id)}/access` : linkTo(type, id)); }}
+        value={current}
+        onChange={(value) => { void navigate(value === 'access' || value === 'groups' ? `${linkTo(type, id)}/${value}` : linkTo(type, id)); }}
         keepMounted={false}
       >
         <Tabs.List>
           <Tabs.Tab value="details">Details</Tabs.Tab>
           {canManageAccess ? <Tabs.Tab value="access">Access</Tabs.Tab> : null}
+          {hasGroups ? <Tabs.Tab value="groups">Groups</Tabs.Tab> : null}
         </Tabs.List>
         <Tabs.Panel value="details" pt="md">
           <Details type={type} id={id} object={object} />
@@ -126,6 +129,11 @@ function ObjectView({ type, id, object, tab }: { type: ObjectType; id: string; o
         {canManageAccess ? (
           <Tabs.Panel value="access" pt="md">
             <AccessTab type={type} id={id} permissions={object.permissions} ancestors={object.ancestors} />
+          </Tabs.Panel>
+        ) : null}
+        {hasGroups ? (
+          <Tabs.Panel value="groups" pt="md">
+            <GroupsTab customerId={id} createPermissions={object.permissions} />
           </Tabs.Panel>
         ) : null}
       </Tabs>
@@ -153,11 +161,6 @@ function Details({ type, id, object }: { type: ObjectType; id: string; object: O
           </Stack>
         </Paper>
         <ChildList type={type} id={id} />
-        {type === 'customer' ? (
-          <Anchor component={Link} to={`/customers/${id}/groups`}>
-            Groups of this customer
-          </Anchor>
-        ) : null}
       </Stack>
       <Card withBorder padding="md">
         <Title order={5} mb="xs">

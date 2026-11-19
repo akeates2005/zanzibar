@@ -1,6 +1,9 @@
 /* The page behind the cards: a faint tint so white cards lift off it in light mode, near-black in dark mode. */
 :root {
   --app-canvas: #f7f8fc;
+  /* Always reserve the scrollbar's space. Otherwise a tall tab (Access) adds a scrollbar and a short one (Details)
+     removes it, and every right-aligned control jumps sideways when switching between them. */
+  scrollbar-gutter: stable;
 }
 
 :root[data-mantine-color-scheme='dark'] {

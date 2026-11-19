@@ -19,7 +19,7 @@ be expressed in one small schema and kept correct by tests that run against the 
 | --- | --- |
 | Admin inherits **downward**; viewer, spender and operator do not | Alice and Erin in the demo below |
 | **Support** (platform) can read everything and change nothing | Sam |
-| **Groups**, **nested groups**, and rules the schema cannot express (no cycles, same owner, no cross-customer grants) | Heidi, Bob, the Groups screen |
+| **Groups**, **nested groups**, and rules the schema cannot express (no cycles, same owner, no cross-customer grants) | Heidi, Bob, a customer's Groups tab |
 | **Isolation**: one customer can never reach another's objects | Grace |
 | **Instant revocation**: the next request already reflects a change | moving a wallet, removing a group member |
 | **404, not 403**, for what you may not see (existence is never leaked) | any user, any URL |
@@ -109,11 +109,11 @@ The acceptance test for the whole build is this table: `authz/validation.yaml` a
 Run the four terminals above. Reset to a clean slate at any point from **System → Reset data** (as Priya) or by restarting the
 API. Times are rough.
 
-**1. The whole picture (1 min).** Open the app. You start as **Priya**. *Resources* shows every object in the tree; the header
+**1. The whole picture (1 min).** Open the app. You start as **Priya**. *Resources* shows every object in the tree; the sidebar
 has a **System** link that no one else gets. Open **Acme UK → UK Operations**. The *Your access* panel lists every permission of
 a wallet with a tick or a cross.
 
-**2. Inheritance and isolation (2 min).** Switch to **Alice** (header selector; it is instant and clears all cached data). She
+**2. Inheritance and isolation (2 min).** Switch to **Alice** (the selector at the foot of the sidebar; it is instant and clears all cached data). She
 sees Acme and everything under it, and nothing of Globex. Open **Acme UK → Access** tab: *Inherited access* lists the
 administrators of the customer and the platform, each labelled with where it comes from. Now switch to **Grace** and paste
 `/resources/commerce/wallet/uk-ops` into the address bar: *"This wallet does not exist, or you do not have access to it."* Not a 403: the
@@ -124,8 +124,8 @@ On the customer page *Rename*, *Add domain* and *Delete* are disabled; hover one
 Direct API calls for those actions are refused with a 403 that names it too.
 
 **4. Groups, nested groups, and removing one (2 min).** Switch to **Heidi** and open **Acme UK**: she administers it, through
-*UK contractors*, which is nested inside *UK IT*. Switch to **Alice**, open the customer page and its **Groups of this
-customer** link, and choose *UK contractors*. Try to add the group *UK IT* as a member: refused, because it would make a cycle.
+*UK contractors*, which is nested inside *UK IT*. Switch to **Alice**, open the customer page and its **Groups** tab,
+and choose *UK contractors*. Try to add the group *UK IT* as a member: refused, because it would make a cycle.
 Now open **UK IT** and remove its member **UK contractors**. Switch back to **Heidi**: everything is gone, on her very next
 request. **Bob** is untouched, because he is in *UK IT* directly.
 

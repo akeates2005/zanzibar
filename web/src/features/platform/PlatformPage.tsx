@@ -6,6 +6,7 @@ import { createCustomer, useCommand } from '../../api/commands';
 import { useChildren, useMe } from '../../api/queries';
 import { ActionButton, EmptyState, NotFoundPanel, PageTitle, PermissionList, QueryBoundary } from '../../components/common';
 import { AccessTab } from '../access/AccessTab';
+import { GroupsTab } from '../groups/GroupsTab';
 import { TextPromptModal } from '../resources/dialogs';
 
 /** `platform:main`: its customers, and the grants that give people platform-wide roles. */
@@ -22,7 +23,9 @@ export function PlatformPage() {
       {(profile) => {
         const permissions = profile.platformPermissions;
         if (!permissions.view) return <NotFoundPanel what="The platform" />;
-        const onAccess = location.pathname.endsWith('/access') && permissions.manage_access === true;
+        const current = location.pathname.endsWith('/access') && permissions.manage_access === true
+          ? 'access'
+          : location.pathname.endsWith('/groups') ? 'groups' : 'details';
         return (
           <Stack>
             <PageTitle
@@ -30,10 +33,11 @@ export function PlatformPage() {
               badge="Platform"
               actions={<ActionButton label="New customer" permission="create_customer" permissions={permissions} onClick={() => { setCreating(true); }} />}
             />
-            <Tabs value={onAccess ? 'access' : 'details'} onChange={(v) => { void navigate(v === 'access' ? '/resources/platform/main/access' : '/resources/platform/main'); }} keepMounted={false}>
+            <Tabs value={current} onChange={(v) => { void navigate(v === 'access' || v === 'groups' ? `/resources/platform/main/${v}` : '/resources/platform/main'); }} keepMounted={false}>
               <Tabs.List>
                 <Tabs.Tab value="details">Details</Tabs.Tab>
                 {permissions.manage_access ? <Tabs.Tab value="access">Access</Tabs.Tab> : null}
+                <Tabs.Tab value="groups">Groups</Tabs.Tab>
               </Tabs.List>
               <Tabs.Panel value="details" pt="md">
                 <Stack>
@@ -47,7 +51,6 @@ export function PlatformPage() {
                       )}
                     </QueryBoundary>
                   </Paper>
-                  <Anchor component={Link} to="/platform/groups">Platform groups</Anchor>
                   <Paper withBorder p="md">
                     <Title order={5} mb="xs">Your access</Title>
                     <PermissionList permissions={permissions} />
@@ -59,6 +62,9 @@ export function PlatformPage() {
                   <AccessTab type="platform" id="main" permissions={permissions} ancestors={[]} />
                 </Tabs.Panel>
               ) : null}
+              <Tabs.Panel value="groups" pt="md">
+                <GroupsTab customerId={null} createPermissions={permissions} />
+              </Tabs.Panel>
             </Tabs>
             <TextPromptModal opened={creating} onClose={() => { setCreating(false); }} busy={create.isPending} title="New customer" label="Customer name" submitLabel="Create customer" onSubmit={(name) => { create.mutate({ name }); }} />
           </Stack>
