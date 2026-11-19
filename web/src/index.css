@@ -1,3 +1,12 @@
+/* The page behind the cards: a faint tint so white cards lift off it in light mode, near-black in dark mode. */
+:root {
+  --app-canvas: #f7f8fc;
+}
+
+:root[data-mantine-color-scheme='dark'] {
+  --app-canvas: var(--mantine-color-dark-8);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

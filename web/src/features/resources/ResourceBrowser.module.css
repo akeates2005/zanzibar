@@ -1,0 +1,49 @@
+.root,
+.children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Each level indents and draws a guide line, so the hierarchy reads at a glance. */
+.children {
+  margin-left: 22px;
+  padding-left: 12px;
+  border-left: 1px solid var(--mantine-color-default-border);
+}
+
+/* On a phone the full indent leaves the deepest rows no room, so each level steps in less. */
+@media (max-width: 48em) {
+  .children {
+    margin-left: 12px;
+    padding-left: 6px;
+  }
+}
+
+.item {
+  list-style: none;
+}
+
+.badge {
+  flex-shrink: 0;
+}
+
+.row {
+  padding: 6px 10px;
+  border-radius: var(--mantine-radius-md);
+  transition: background-color 120ms ease;
+}
+
+.row:hover {
+  background-color: var(--mantine-color-default-hover);
+}
+
+.link {
+  color: var(--mantine-color-text);
+  font-weight: 500;
+}
+
+.link:hover {
+  color: var(--mantine-primary-color-filled);
+  text-decoration: none;
+}

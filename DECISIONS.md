@@ -475,3 +475,39 @@ zed's parser decided; zed rejects many of these strings client-side before sendi
 - **Options left open:**
   - clamp the reported lag at 0 and read "now" from the same `TimeProvider`;
   - or log both timestamps when the lag is negative and reproduce under load.
+
+## Client restyle: theme, sidebar and resource tree (2026-11-19)
+
+**Asked by Andrew:** "more modern". He chose the scope (theme, sidebar, tree; tables and pages unchanged), the look
+(clean SaaS in indigo, with dark mode) and the icon library, subject to a clean audit.
+
+**What changed**
+- `web/src/theme.ts`: a Mantine `createTheme` with an indigo `brand` scale, the Inter font, `md` radius and soft shadows.
+  Before this, `MantineProvider` had no theme. The unit-test renderer uses the same theme.
+- `Shell.tsx`: a left sidebar (`AppShell.Navbar`) with an icon per section, a burger menu below `sm`, and a light/dark
+  toggle in the header. The signed-in user is shown with initials above the switcher. Content is capped at 1200px.
+- `ResourceBrowser.tsx`: each row has a tinted icon and a coloured type badge, with indent guide lines and a hover
+  highlight. Indents are narrower on a phone.
+- `web/public/favicon.svg`: Vite answered `/favicon.ico` with 404, which showed up as a console error.
+
+**Decided under delegated design authority**
+- **The user switcher stays a native `<select>`.** `e2e/support.ts:56` drives it with `selectOption`, and a select is the
+  plainest control for a demo.
+- **Link names, the `signed-in-name` test id, `tree-*` test ids and the nested `li` structure are kept**, because the
+  journeys and unit tests select by them.
+- **A type the client does not know gets a grey cube, never an error** (`typeVisuals.tsx`). Types come from the engine's
+  schema (step 3), so another team's type reaches the client unannounced.
+- **New dependencies, pinned exactly:** `@tabler/icons-react@3.50.0` (released 2026-10-27; 3.52.0 was five days old, so
+  not taken) and `@fontsource-variable/inter@5.3.0` (the font is served by the app, with no third-party font request).
+  `npm audit` showed the same 9 moderate findings before and after the install. All 9 come from `minimatch`
+  (GHSA-g3hv-75wg-m249), reached through eslint and typescript-eslint dev tooling, not from these packages.
+
+**Proven**
+- `typeVisuals.test.tsx`: an unknown type renders the fallback. Mutation-checked: with the fallback removed, the test
+  fails with `TypeError: Cannot read properties of undefined`.
+- Screenshots of the tree (light, dark, 390px wide) and of a domain's Access tab, with no console errors.
+
+**Not verified**
+- The ObjectDetail, Groups, Explorer and System pages were checked only in the earlier screenshots (Explorer) or not at
+  all. They inherit the theme but their layout is unchanged.
+- No accessibility audit (contrast of the light badges in dark mode was judged by eye only).

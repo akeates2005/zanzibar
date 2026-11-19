@@ -4,6 +4,8 @@ import { render, type RenderResult } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
+import { theme } from '../theme';
+
 export function newQueryClient(): QueryClient {
   return new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } } });
 }
@@ -12,7 +14,7 @@ export function newQueryClient(): QueryClient {
 export function renderWithProviders(ui: ReactElement, options: { client?: QueryClient; route?: string } = {}): RenderResult & { client: QueryClient } {
   const client = options.client ?? newQueryClient();
   const result = render(
-    <MantineProvider env="test">
+    <MantineProvider env="test" theme={theme}>
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={[options.route ?? '/']}>{ui}</MemoryRouter>
       </QueryClientProvider>

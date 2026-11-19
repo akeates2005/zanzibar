@@ -5,9 +5,11 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
+import '@fontsource-variable/inter';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './index.css';
+import { theme } from './theme';
 
 import { ApiError } from './api/problem';
 import { App, SignInFallback } from './App';
@@ -28,7 +30,7 @@ if (!root) throw new Error('The page has no #root element.');
 
 createRoot(root).render(
   <StrictMode>
-    <MantineProvider defaultColorScheme="auto">
+    <MantineProvider theme={theme} defaultColorScheme="auto">
       <Notifications position="bottom-right" />
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
