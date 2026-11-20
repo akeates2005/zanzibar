@@ -558,3 +558,16 @@ customer and platform pages.
   previous commit (`b1d5715`) does the same through the old route, so this is not new.
 - At 390px a long "Remove …" button in the group's Members table runs past the card's edge. The table's layout is
   unchanged by this work.
+
+## SDK pinned to 9.0.119 until the .NET 10 upgrade (2026-11-20)
+
+- **Why:** SDK 10.0.115 was installed side by side with 9.0.119 (Ubuntu `noble-updates`), so that the move to
+  `net10.0` can start. The repo had no `global.json`, so SDK 10 became the default for the `net9.0` tree, and the
+  build failed. SDK 10 adds analyzer CA1873 ("evaluation of this argument may be expensive"), and with warnings as
+  errors it fails 12 log calls that build their arguments eagerly (`SpiceDbAuthorizer.cs:31`, `:80`, `:194`;
+  `AccessLog.cs:13`). Observed 2026-11-20.
+- **Decision (Andrew):** `global.json` pins SDK 9.0.119 with `rollForward: latestFeature`: any 9.0 SDK at or above
+  it, never 10. The upgrade is a change of its own: target framework, packages, the OpenAPI transformer
+  (`Program.cs:104`, Microsoft.OpenApi 2.0), CA1873 fixed at the cause, and this pin removed.
+- **Not affected:** the Dockerfiles do not copy `global.json`; they keep the `sdk:9.0` images.
+- **Note:** .NET 9 left support on 2026-11-10, so this pin is a stopgap, not a resting state.
