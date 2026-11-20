@@ -109,8 +109,13 @@ def check_no_build(cmd: str):
     m = re.search(r"\bdotnet\s+test\b[^;&|\n]*--no-build", cmd)
     if not m:
         return
-    if re.search(r"\bdotnet\s+build\b[^;|\n]*&&", cmd[: m.start()]):
+    before = cmd[: m.start()]
+    if re.search(r"\bdotnet\s+build\b[^;|\n]*&&", before):
         return
+    if re.search(r"\bdotnet\s+build\b[^;\n]*?(?<!\|)\|(?!\|)[^;\n]*&&", before):
+        deny("`dotnet build ... | grep ... && dotnet test --no-build`: the `&&` tests grep's exit, not the build's, and "
+             "grep matches the error lines when the build fails. Send the build to a log instead: "
+             "`dotnet build ... > \"$S/build.log\" 2>&1 && dotnet test ... --no-build; grep -E \" error \" \"$S/build.log\"`.")
     deny("`dotnet test --no-build` runs the previous binary if the last build failed (an analyzer error once gave stale "
          "results here). Drop --no-build, or chain it as `dotnet build ... && dotnet test ... --no-build`.")
 

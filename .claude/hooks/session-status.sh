@@ -14,6 +14,17 @@ cd "${CLAUDE_PROJECT_DIR:-$(pwd)}" 2>/dev/null || exit 0
   open="$(grep -E '^\| D[0-9]+ ' DECISIONS.md 2>/dev/null | grep -E '\*\*(Blocked|Not verified|Open)' | cut -d'|' -f2,3 | sed 's/^ */  - /')"
   if [[ -n "$open" ]]; then printf '%s\n' "$open"; else echo "  - none"; fi
   echo
+  sdk="$(dotnet --version 2>/dev/null)"
+  tfm="$(grep -oE '<TargetFramework>net[0-9]+' Directory.Build.props 2>/dev/null | grep -oE '[0-9]+$')"
+  if [[ -n "$sdk" && -n "$tfm" ]]; then
+    pin=""; [[ -f global.json ]] && pin=" (pinned by global.json)"
+    echo "SDK: $sdk$pin builds the project; target net$tfm.0."
+    if [[ -z "$pin" && "${sdk%%.*}" -gt "$tfm" ]]; then
+      echo "  WARNING: the SDK is newer than the target. Its analyzers can fail the build on unchanged code (SDK 10 on"
+      echo "  net9 gave CA1873 errors). Expect new analyzer errors; fix them at the cause or pin the SDK with global.json."
+    fi
+  fi
+  echo
   if [[ -f .verify/last-pass ]] && [[ "$(cat .verify/last-pass)" == "$(scripts/worktree-fingerprint.sh 2>/dev/null)" ]]; then
     echo "verify.sh: last pass matches the current working tree."
   else

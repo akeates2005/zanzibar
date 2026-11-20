@@ -14,17 +14,27 @@ step.
 
 - Ports 5080, 5090, 5173 and 50051 must be free: `ss -ltn | grep -E ':(5080|5090|5173|50051)\b'` prints nothing.
 - `verify.sh` and the e2e tests need the API and issuer ports (5080 and 5090). Never run the app at the same time as
-  either; stop it first.
+  either. Check with `ps -eo pid,args | grep -E "[v]erify\.sh|[p]laywright test"`. That includes a clean-clone
+  verify in the scratchpad.
+- **If a verify run is in progress when you're asked to start the app**, don't stop the run and don't ask. Say that
+  the app will start when verify finishes, wait for its background notification, then start. A question here was
+  rejected on 2026-11-20. Kill the run only if the user says so.
 
 ## 2. Start (from the repository root)
 
+The build goes to a log, and nothing starts unless it succeeds. `dotnet run --no-build` after a failed build would
+start the previous binaries.
+
 ```bash
 R=<scratchpad>/run; mkdir -p "$R"
-dotnet build Poc.sln --nologo -v quiet 2>&1 | grep -E " error |Build succeeded"
-scripts/spicedb-local.sh start
-nohup dotnet run --no-build --project src/Poc.DevIssuer > "$R/issuer.log" 2>&1 & echo $! > "$R/issuer.pid"
-Poc__SpiceDb__PresharedKey=zanzibar-dev-only-key nohup dotnet run --no-build --project src/Poc.Api > "$R/api.log" 2>&1 & echo $! > "$R/api.pid"
-(cd web && nohup npm run dev > "$R/web.log" 2>&1 &)
+if ! dotnet build Poc.sln --nologo -v quiet > "$R/build.log" 2>&1; then
+  grep -E " error " "$R/build.log" | head -20
+else
+  scripts/spicedb-local.sh start
+  nohup dotnet run --no-build --project src/Poc.DevIssuer > "$R/issuer.log" 2>&1 & echo $! > "$R/issuer.pid"
+  Poc__SpiceDb__PresharedKey=zanzibar-dev-only-key nohup dotnet run --no-build --project src/Poc.Api > "$R/api.log" 2>&1 & echo $! > "$R/api.pid"
+  (cd web && nohup npm run dev > "$R/web.log" 2>&1 &)
+fi
 ```
 
 Wait for readiness (about 15 seconds; the API reseeds both stores). Do not use `sleep`:
