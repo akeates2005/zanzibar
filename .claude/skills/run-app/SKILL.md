@@ -5,7 +5,8 @@ description: Start the Zanzibar PoC locally (SpiceDB, stub issuer, API, Vite cli
 
 # Run the app
 
-Verified 2026-11-18 on this machine (WSL2, .NET 9, Node 22, SpiceDB v1.57.1, Google Chrome). This follows the README's
+Verified 2026-11-18 on this machine (WSL2, .NET 9, Node 22, SpiceDB v1.57.1, Google Chrome). On .NET 10 (2026-11-20),
+steps 2 and 4 ran as written and `/health` reported ready; the step 3 drive script has not been rerun. This follows the README's
 "Four terminals" section, run in the background. Set `R` to a folder in your scratchpad, and use the same value in every
 step.
 

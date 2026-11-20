@@ -28,7 +28,7 @@ the D8 section of `DECISIONS.md`. This file says *what* and *why*; `DECISIONS.md
 
 - **No Docker, no Postgres, no CockroachDB on this machine.** Anything that needs a durable datastore, a container or two
   SpiceDB processes sharing one database cannot be proven here. That is why step 1 is CI.
-- SpiceDB v1.57.1 and zed v1.2.1 are in `~/.local/bin`. .NET SDK 9 only (D1). Google Chrome is installed (Playwright).
+- SpiceDB v1.57.1 and zed v1.2.1 are in `~/.local/bin`. .NET SDKs 10.0.115 and 9.0.119 (apt); the project targets net10.0 (D1 resolved 2026-11-20). Google Chrome is installed (Playwright).
 - `git push` needs gh as a one-off credential helper:
   `git -c credential.helper= -c credential.helper='!gh auth git-credential' push origin main`. Push only when asked.
 
@@ -39,7 +39,7 @@ the D8 section of `DECISIONS.md`. This file says *what* and *why*; `DECISIONS.md
 Run `./verify.sh` on every push, plus a job that runs `docker compose up --build` from a clean checkout and waits for
 `/health`. This finally tests D3 and D7 (the only acceptance criteria never verified), and gives later steps a place with
 Postgres.
-- The workflow must install the pinned SpiceDB and zed (checksums as in `DECISIONS.md`, "Tool versions"), .NET 9, Node and
+- The workflow must install the pinned SpiceDB and zed (checksums as in `DECISIONS.md`, "Tool versions"), .NET 10, Node and
   Chrome or Playwright's Chromium.
 - Not checked: that GitHub's hosted Ubuntu runners ship Docker Compose. I believe they do, but look it up before relying on it.
 - **Ask first:** pushing a workflow is outward-facing, so show Andrew the file before pushing it.
