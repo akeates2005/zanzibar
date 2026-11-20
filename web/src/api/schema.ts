@@ -488,19 +488,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @description RFC 9457 problem details. */
-        Problem: {
-            type?: string | null;
-            title?: string;
-            /** Format: int32 */
-            status?: number;
-            detail?: string | null;
-            traceId?: string | null;
-            /** @description Present on 403: the permission the caller lacks. */
-            permission?: string | null;
-            /** @description Present on 422: a stable rule code. */
-            code?: string | null;
-        };
         AccessObjectView: {
             type: string;
             id: string;
@@ -603,7 +590,7 @@ export interface components {
         };
         GrantRequest: {
             relation: string | null;
-            subject: components["schemas"]["SubjectRequest"];
+            subject: (null) | components["schemas"]["SubjectRequest"];
         };
         GrantResponse: {
             /** Format: int64 */
@@ -684,7 +671,7 @@ export interface components {
         };
         OutboxDto: {
             outbox: components["schemas"]["OutboxStatus"];
-            reconciliation: components["schemas"]["ReconciliationDto"];
+            reconciliation: (null) | components["schemas"]["ReconciliationDto"];
             ready: boolean;
             /** Format: int32 */
             startupCount: number;
@@ -712,6 +699,19 @@ export interface components {
             id: string;
             authorisationPending: boolean;
         };
+        /** @description RFC 9457 problem details. */
+        Problem: {
+            type?: string | null;
+            title?: string;
+            /** Format: int32 */
+            status?: number;
+            detail?: string | null;
+            traceId?: string | null;
+            /** @description Present on 403: the permission the caller lacks. */
+            permission?: string | null;
+            /** @description Present on 422: a stable rule code. */
+            code?: string | null;
+        };
         QuantityRequest: {
             /** Format: int32 */
             quantity: number;
@@ -724,21 +724,8 @@ export interface components {
             unexpected: string[];
             /** Format: int32 */
             skippedPending: number;
-        } | null;
-        ReconciliationDto2: {
-            /** Format: date-time */
-            at: string;
-            inSync: boolean;
-            missing: string[];
-            unexpected: string[];
-            /** Format: int32 */
-            skippedPending: number;
         };
         SubjectRequest: {
-            type: string | null;
-            id: string | null;
-        } | null;
-        SubjectRequest2: {
             type: string | null;
             id: string | null;
         };
@@ -4112,7 +4099,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["SubjectRequest2"];
+                "application/json": components["schemas"]["SubjectRequest"];
             };
         };
         responses: {
@@ -4378,7 +4365,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReconciliationDto2"];
+                    "application/json": components["schemas"]["ReconciliationDto"];
                 };
             };
             /** @description Malformed request */

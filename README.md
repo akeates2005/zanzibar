@@ -6,7 +6,7 @@ to show that a hierarchy, inheritance, groups and nested groups, isolation betwe
 be expressed in one small schema and kept correct by tests that run against the real engine.
 
 - **Engine:** SpiceDB (memory datastore) with one schema, `authz/schema.zed`.
-- **API:** .NET 9 modular monolith, ASP.NET Core minimal APIs, SQLite in memory through EF Core.
+- **API:** .NET 10 modular monolith, ASP.NET Core minimal APIs, SQLite in memory through EF Core.
 - **Client:** React 19, TypeScript (strict), Vite, TanStack Query, React Router, Mantine.
 - **Sign-in:** a stub token issuer that publishes OIDC discovery and keys, so the API validates tokens exactly as it would
   against Azure AD B2C. Moving to B2C is configuration.
@@ -30,7 +30,7 @@ be expressed in one small schema and kept correct by tests that run against the 
 
 ### Prerequisites
 
-.NET 9 SDK, Node 22, and the `spicedb` binary (v1.57.1) and `zed` (v1.2.1) on your `PATH`. Chrome is needed only for the
+.NET 10 SDK, Node 22, and the `spicedb` binary (v1.57.1) and `zed` (v1.2.1) on your `PATH`. Chrome is needed only for the
 browser tests. Docker is **not** needed for any of this.
 
 ### Four terminals

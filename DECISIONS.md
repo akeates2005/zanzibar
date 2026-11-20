@@ -6,7 +6,7 @@ Choices made where PRD.md is silent or where the environment forced a deviation.
 
 | # | PRD says | We do | Reason |
 | --- | --- | --- | --- |
-| D1 | .NET 10 (LTS) | Target `net9.0` | Only SDK 9.0.119 is installed; Andrew chose to target .NET 9 rather than install .NET 10. Authzed.Net targets net8.0+, so it is compatible. Moving to net10.0 later is a `TargetFramework` change. |
+| D1 | .NET 10 (LTS) | **Resolved 2026-11-20: target `net10.0`.** Until then, `net9.0` | Only SDK 9.0.119 was installed at first, and Andrew chose .NET 9 rather than install .NET 10. SDK 10.0.115 was installed on 2026-11-20 and the project moved; it took more than a `TargetFramework` change (see ".NET 10 upgrade" below). |
 | D2 | SpiceDB in Docker, Testcontainers, Compose | Native `spicedb` binary (memory datastore) for Phases 1-4 | Docker is not installed in this WSL environment. Andrew chose a native binary for now. |
 | D3 | Phase 5 Playwright against Compose; Phase 6 "`docker compose up` from a clean clone" | **Blocked until Docker is available** | Cannot be accepted without Docker. `docker-compose.yml` can be written and reviewed but not run. Phases 5-6 stay open on those criteria. |
 | D4 | "Lookups page through the cursor until exhausted" (Ports) | `LookupResources` pages through the cursor; `LookupSubjects` reads one unpaged stream | SpiceDB v1.57.1 rejects `optional_concrete_limit` on LookupSubjects (`Unimplemented: concrete limit is not yet supported`), so cursor paging cannot be used. Verified directly against the engine: unpaged LookupSubjects returned all 1500 of 1500 subjects (no 1000 cap, unlike LookupResources). Raised under PRD rule 2 and agreed by Andrew 2026-11-12. Revisit if a permission could have tens of thousands of holders or when the engine adds concrete limits. |
@@ -571,3 +571,40 @@ customer and platform pages.
   (`Program.cs:104`, Microsoft.OpenApi 2.0), CA1873 fixed at the cause, and this pin removed.
 - **Not affected:** the Dockerfiles do not copy `global.json`; they keep the `sdk:9.0` images.
 - **Note:** .NET 9 left support on 2026-11-10, so this pin is a stopgap, not a resting state.
+- **Removed the same day** by the .NET 10 upgrade below.
+
+## .NET 10 upgrade (2026-11-20, resolves D1)
+
+Target `net10.0` (`Directory.Build.props`), Microsoft packages 10.0.15 (the installed runtime is 10.0.15), SDK
+10.0.115, and the `sdk:10.0` and `aspnet:10.0` images. `global.json` is gone. The other packages (OpenTelemetry 1.15,
+Authzed.Net 1.6.0, IdentityModel 8.23, xunit) are unchanged and build and pass on net10.0. What else the move needed:
+
+- **CA1873 fixed at the cause.** The check log in `SpiceDbAuthorizer` (three call sites) and all three `AccessLog`
+  methods built their arguments eagerly; they now pass the values to the generated log methods, which format them only when the level is enabled. The analyzer does not accept an
+  `IsEnabled` guard around a generated method (observed), so passing values is the fix. The log text is unchanged:
+  it is the values' `ToString()`. One small difference: a check logged outside any trace now prints its trace id as
+  the formatter's null text instead of `none`. Not observed; no test or document reads it.
+- **OpenAPI transformer rewritten for Microsoft.OpenApi 2.x** (2.13.0 resolved). It has no `Nullable` flag (the
+  type includes `Null`), types are an enum, and references are `OpenApiSchemaReference` and
+  `OpenApiSecuritySchemeReference` ([what's new](https://learn.microsoft.com/aspnet/core/release-notes/aspnetcore-10.0#openapi)).
+- **The document stays OpenAPI 3.0.** .NET 10 defaults to 3.1, which would rewrite every nullable in
+  `web/openapi.json` and the client's types. Moving to 3.1 is a change of its own.
+- **JSON numbers are strict** (`JsonNumberHandling.Strict`). The web defaults have always accepted `"5"` for a number,
+  and .NET 10's generator now describes that, so all 21 numbers in the document became "integer or string" and the
+  client's number fields would have widened. Nothing sends numbers as strings (searched the tests, client and
+  journeys). Refusing them is tighter input handling, and the document says `integer` again. Tested by
+  `ObjectApiTests.A_number_sent_as_a_string_is_a_400…`; mutation-checked (with `AllowReadingFromString`, that test
+  and the contract test both fail).
+- **What changed in the document anyway:** schemas are reordered, .NET 9's duplicate `SubjectRequest2` and
+  `ReconciliationDto2` are gone, and two nullable objects are written as `oneOf` with `null` at the place they are
+  used. The regenerated `schema.ts` means the same: nullability moved from the type to its uses. `tsc` passes.
+- **The issuer's `Program` is declared `internal`.** .NET 10 generates a public `Program` for every web project that
+  declares none ([source](https://learn.microsoft.com/aspnet/core/release-notes/aspnetcore-10.0#miscellaneous)). The
+  integration tests reference both web projects, so two public `Program` types were ambiguous (CS0433). The tests host
+  the issuer through `DevIssuerApp`, so its `Program` need not be public.
+- **Accepted as is:** when `ApiExceptionHandler` handles an exception, the framework no longer logs it or tags the
+  request metric with `error.type` ([source](https://learn.microsoft.com/aspnet/core/breaking-changes/10/exception-handler-diagnostics-suppressed)).
+  Our handler already logs every 500 and 503 itself. Restore the metric tag with `SuppressDiagnosticsCallback` if a
+  dashboard needs it.
+- **Not verified:** the 10.0 images, which are Ubuntu-based ([source](https://learn.microsoft.com/dotnet/core/compatibility/containers/10.0/default-images-use-ubuntu)),
+  still provide the non-root `app` user that both Dockerfiles switch to. Docker has never run here (D2, D3, D7).

@@ -28,7 +28,7 @@ public sealed partial class SpiceDbAuthorizer(SpiceDbConnection connection, ILog
             deadline => connection.Permissions.CheckPermissionAsync(request, deadline: deadline, cancellationToken: ct).ResponseAsync,
             ct).ConfigureAwait(false);
         var allowed = response.Permissionship == Az.CheckPermissionResponse.Types.Permissionship.HasPermission;
-        LogCheck(subject.ToString(), permission, resource.ToString(), allowed, Stopwatch.GetElapsedTime(started).TotalMilliseconds, CurrentTraceId());
+        LogCheckIfEnabled(subject, permission, resource, allowed, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         return allowed;
     }
 
@@ -77,7 +77,7 @@ public sealed partial class SpiceDbAuthorizer(SpiceDbConnection connection, ILog
 
         var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         foreach (var (permission, allowed) in result)
-            LogCheck(subject.ToString(), permission, resource.ToString(), allowed, elapsed, CurrentTraceId());
+            LogCheckIfEnabled(subject, permission, resource, allowed, elapsed);
         return result;
     }
 
@@ -191,7 +191,7 @@ public sealed partial class SpiceDbAuthorizer(SpiceDbConnection connection, ILog
             deadline => connection.Permissions.CheckPermissionAsync(request, deadline: deadline, cancellationToken: ct).ResponseAsync,
             ct).ConfigureAwait(false);
         var allowed = response.Permissionship == Az.CheckPermissionResponse.Types.Permissionship.HasPermission;
-        LogCheck(subject.ToString(), permission, resource.ToString(), allowed, Stopwatch.GetElapsedTime(started).TotalMilliseconds, CurrentTraceId());
+        LogCheckIfEnabled(subject, permission, resource, allowed, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
 
         var budget = TraceNodeLimit;
         return new CheckExplanation(allowed, response.DebugTrace?.Check is { } root ? MapTrace(root, ref budget) : null);
@@ -221,8 +221,13 @@ public sealed partial class SpiceDbAuthorizer(SpiceDbConnection connection, ILog
             children);
     }
 
-    /// <summary>The trace id of the request this check belongs to, so a log line can be joined to its trace.</summary>
-    private static string CurrentTraceId() => Activity.Current?.TraceId.ToString() ?? "none";
+    /// <summary>
+    /// The refs and the trace id are passed as values, so the generated logger formats them only when Debug is on
+    /// (CA1873); the text is their <c>ToString()</c>, as before. The trace id lets a log line be joined to its trace;
+    /// it is null outside a traced request.
+    /// </summary>
+    private void LogCheckIfEnabled(SubjectRef subject, string permission, ResourceRef resource, bool allowed, double durationMs) =>
+        LogCheck(subject, permission, resource, allowed, durationMs, Activity.Current?.TraceId);
 
     private static void RequireName(string value)
     {
@@ -231,5 +236,5 @@ public sealed partial class SpiceDbAuthorizer(SpiceDbConnection connection, ILog
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Debug,
         Message = "authz check subject={Subject} permission={Permission} resource={Resource} allowed={Allowed} durationMs={DurationMs:F1} traceId={TraceId}")]
-    private partial void LogCheck(string subject, string permission, string resource, bool allowed, double durationMs, string traceId);
+    private partial void LogCheck(SubjectRef subject, string permission, ResourceRef resource, bool allowed, double durationMs, ActivityTraceId? traceId);
 }

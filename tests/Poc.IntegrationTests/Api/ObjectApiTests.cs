@@ -139,6 +139,19 @@ public sealed class ObjectApiTests : ApiTestBase
         await (await priya.PostAsync("/api/customers", content)).ExpectProblemAsync(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task A_number_sent_as_a_string_is_a_400_so_the_api_description_can_say_integer()
+    {
+        // JSON numbers are strict (Program.cs, DECISIONS.md ".NET 10"): the web default would accept "2", and the
+        // OpenAPI document would then describe every number as "integer or string".
+        var priya = await AsAsync("priya");
+        using var asString = new StringContent("""{ "productName": "Strict", "quantity": "2" }""", Encoding.UTF8, "application/json");
+        await (await priya.PostAsync("/api/wallets/uk-ops/subscriptions", asString)).ExpectProblemAsync(HttpStatusCode.BadRequest);
+
+        // The same request with a JSON number is accepted, so the string is what was refused.
+        await (await priya.PostJsonAsync("/api/wallets/uk-ops/subscriptions", new { productName = "Strict", quantity = 2 })).ExpectAsync(HttpStatusCode.Created);
+    }
+
     [Theory]
     [InlineData("/api/customers/Not_A_Valid_Id")]
     [InlineData("/api/customers/a%23member")]

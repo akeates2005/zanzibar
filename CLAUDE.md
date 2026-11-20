@@ -6,7 +6,7 @@
 - Leave notes, TODOs and plans you weren't asked about alone. If you notice one that looks relevant, list it at the end of
   your reply instead of acting on it.
 
-A .NET 9 modular monolith with SpiceDB, a stub OIDC issuer and a React client. `PRD.md` is the specification,
+A .NET 10 modular monolith with SpiceDB, a stub OIDC issuer and a React client. `PRD.md` is the specification,
 `DECISIONS.md` records every choice and deviation (D1 to D8), and `LESSONS.md` is the retrospective. Read those files for
 detail; this file holds the rules that must hold in every session. **`NEXT-STEPS.md` is the current plan**: what to build
 next, in order, with each item's status (Decided / Proposed / Open / In progress / Done). A SessionStart hook prints git state, open deviations,

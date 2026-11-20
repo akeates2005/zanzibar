@@ -9,6 +9,7 @@ using Poc.Domain.Common;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Poc.Infrastructure;
+using OpenApi = Microsoft.OpenApi;
 using Poc.Infrastructure.SpiceDb;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -100,65 +101,79 @@ builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = c =>
     c.ProblemDetails.Extensions["traceId"] = System.Diagnostics.Activity.Current?.Id ?? c.HttpContext.TraceIdentifier;
 });
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
-builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.AddOpenApi(o => o.AddDocumentTransformer((document, _, _) =>
+builder.Services.ConfigureHttpJsonOptions(o =>
 {
-    document.Info.Title = "Zanzibar proof of concept API";
-    document.Info.Version = "v1";
-    document.Components ??= new();
-    document.Components.SecuritySchemes["bearer"] = new Microsoft.OpenApi.Models.OpenApiSecurityScheme
-    {
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-    };
-    document.Components.Schemas["Problem"] = new Microsoft.OpenApi.Models.OpenApiSchema
-    {
-        Type = "object",
-        Description = "RFC 9457 problem details.",
-        Properties = new Dictionary<string, Microsoft.OpenApi.Models.OpenApiSchema>
-        {
-            ["type"] = new() { Type = "string", Nullable = true },
-            ["title"] = new() { Type = "string" },
-            ["status"] = new() { Type = "integer", Format = "int32" },
-            ["detail"] = new() { Type = "string", Nullable = true },
-            ["traceId"] = new() { Type = "string", Nullable = true },
-            ["permission"] = new() { Type = "string", Nullable = true, Description = "Present on 403: the permission the caller lacks." },
-            ["code"] = new() { Type = "string", Nullable = true, Description = "Present on 422: a stable rule code." },
-        },
-    };
-    document.SecurityRequirements.Add(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
-    {
-        [new Microsoft.OpenApi.Models.OpenApiSecurityScheme { Reference = new Microsoft.OpenApi.Models.OpenApiReference { Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme, Id = "bearer" } }] = [],
-    });
-    return Task.CompletedTask;
-}).AddOperationTransformer((operation, context, _) =>
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    // A number must be sent as a JSON number. The web default also accepts "5", and .NET 10's OpenAPI generator
+    // describes that as "integer or string", which would widen every number in the client's types (DECISIONS.md, ".NET 10").
+    o.SerializerOptions.NumberHandling = JsonNumberHandling.Strict;
+});
+builder.Services.AddOpenApi(o =>
 {
-    // Every /api operation can answer with an RFC 9457 problem; describe it so generated clients can type their errors.
-    if (context.Description.RelativePath?.StartsWith("api/", StringComparison.Ordinal) != true) return Task.CompletedTask;
-    var problem = new Microsoft.OpenApi.Models.OpenApiMediaType
+    // Kept at OpenAPI 3.0 (the .NET 10 default is 3.1) so web/openapi.json and the client's generated types do not
+    // change with the framework move. Moving to 3.1 is a change of its own (DECISIONS.md, ".NET 10").
+    o.OpenApiVersion = OpenApi.OpenApiSpecVersion.OpenApi3_0;
+    o.AddDocumentTransformer((document, _, _) =>
     {
-        Schema = new Microsoft.OpenApi.Models.OpenApiSchema
+        document.Info.Title = "Zanzibar proof of concept API";
+        document.Info.Version = "v1";
+        document.Components ??= new();
+        document.Components.SecuritySchemes ??= new Dictionary<string, OpenApi.IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["bearer"] = new OpenApi.OpenApiSecurityScheme
         {
-            Reference = new Microsoft.OpenApi.Models.OpenApiReference { Type = Microsoft.OpenApi.Models.ReferenceType.Schema, Id = "Problem" },
-        },
-    };
-    foreach (var (status, text) in new[]
-             {
-                 ("400", "Malformed request"), ("401", "Not signed in"), ("403", "Missing permission (named in the problem)"),
-                 ("404", "No such object, or not visible to the caller"), ("409", "Conflicts with current state"),
-                 ("422", "Refused by a rule (code in the problem)"), ("503", "Authorisation service unavailable or system starting"),
-             })
-    {
-        operation.Responses.TryAdd(status, new Microsoft.OpenApi.Models.OpenApiResponse
+            Type = OpenApi.SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+        };
+        // Microsoft.OpenApi 2.x has no Nullable flag: a nullable property's type includes Null, and the 3.0 writer
+        // turns that into "nullable": true.
+        const OpenApi.JsonSchemaType NullableString = OpenApi.JsonSchemaType.String | OpenApi.JsonSchemaType.Null;
+        document.Components.Schemas ??= new Dictionary<string, OpenApi.IOpenApiSchema>();
+        document.Components.Schemas["Problem"] = new OpenApi.OpenApiSchema
         {
-            Description = text,
-            Content = { ["application/problem+json"] = problem },
+            Type = OpenApi.JsonSchemaType.Object,
+            Description = "RFC 9457 problem details.",
+            Properties = new Dictionary<string, OpenApi.IOpenApiSchema>
+            {
+                ["type"] = new OpenApi.OpenApiSchema { Type = NullableString },
+                ["title"] = new OpenApi.OpenApiSchema { Type = OpenApi.JsonSchemaType.String },
+                ["status"] = new OpenApi.OpenApiSchema { Type = OpenApi.JsonSchemaType.Integer, Format = "int32" },
+                ["detail"] = new OpenApi.OpenApiSchema { Type = NullableString },
+                ["traceId"] = new OpenApi.OpenApiSchema { Type = NullableString },
+                ["permission"] = new OpenApi.OpenApiSchema { Type = NullableString, Description = "Present on 403: the permission the caller lacks." },
+                ["code"] = new OpenApi.OpenApiSchema { Type = NullableString, Description = "Present on 422: a stable rule code." },
+            },
+        };
+        document.Security ??= [];
+        document.Security.Add(new OpenApi.OpenApiSecurityRequirement
+        {
+            [new OpenApi.OpenApiSecuritySchemeReference("bearer", document)] = [],
         });
-    }
+        return Task.CompletedTask;
+    });
+    o.AddOperationTransformer((operation, context, _) =>
+    {
+        // Every /api operation can answer with an RFC 9457 problem; describe it so generated clients can type their errors.
+        if (context.Description.RelativePath?.StartsWith("api/", StringComparison.Ordinal) != true) return Task.CompletedTask;
+        var problem = new OpenApi.OpenApiMediaType { Schema = new OpenApi.OpenApiSchemaReference("Problem", context.Document) };
+        operation.Responses ??= [];
+        foreach (var (status, text) in new[]
+                 {
+                     ("400", "Malformed request"), ("401", "Not signed in"), ("403", "Missing permission (named in the problem)"),
+                     ("404", "No such object, or not visible to the caller"), ("409", "Conflicts with current state"),
+                     ("422", "Refused by a rule (code in the problem)"), ("503", "Authorisation service unavailable or system starting"),
+                 })
+        {
+            operation.Responses.TryAdd(status, new OpenApi.OpenApiResponse
+            {
+                Description = text,
+                Content = new Dictionary<string, OpenApi.OpenApiMediaType> { ["application/problem+json"] = problem },
+            });
+        }
 
-    return Task.CompletedTask;
-}));
+        return Task.CompletedTask;
+    });
+});
 
 var app = builder.Build();
 

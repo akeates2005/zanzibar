@@ -3965,7 +3965,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SubjectRequest2"
+                "$ref": "#/components/schemas/SubjectRequest"
               }
             }
           },
@@ -4278,7 +4278,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReconciliationDto2"
+                  "$ref": "#/components/schemas/ReconciliationDto"
                 }
               }
             }
@@ -4472,41 +4472,6 @@
   },
   "components": {
     "schemas": {
-      "Problem": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "nullable": true
-          },
-          "title": {
-            "type": "string"
-          },
-          "status": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "detail": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "permission": {
-            "type": "string",
-            "description": "Present on 403: the permission the caller lacks.",
-            "nullable": true
-          },
-          "code": {
-            "type": "string",
-            "description": "Present on 422: a stable rule code.",
-            "nullable": true
-          }
-        },
-        "description": "RFC 9457 problem details."
-      },
       "AccessObjectView": {
         "required": [
           "type",
@@ -4890,7 +4855,17 @@
             "nullable": true
           },
           "subject": {
-            "$ref": "#/components/schemas/SubjectRequest"
+            "oneOf": [
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              {
+                "$ref": "#/components/schemas/SubjectRequest"
+              }
+            ]
           }
         }
       },
@@ -5200,7 +5175,17 @@
             "$ref": "#/components/schemas/OutboxStatus"
           },
           "reconciliation": {
-            "$ref": "#/components/schemas/ReconciliationDto"
+            "oneOf": [
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              },
+              {
+                "$ref": "#/components/schemas/ReconciliationDto"
+              }
+            ]
           },
           "ready": {
             "type": "boolean"
@@ -5286,6 +5271,41 @@
           }
         }
       },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "permission": {
+            "type": "string",
+            "description": "Present on 403: the permission the caller lacks.",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "description": "Present on 422: a stable rule code.",
+            "nullable": true
+          }
+        },
+        "description": "RFC 9457 problem details."
+      },
       "QuantityRequest": {
         "required": [
           "quantity"
@@ -5331,63 +5351,9 @@
             "type": "integer",
             "format": "int32"
           }
-        },
-        "nullable": true
-      },
-      "ReconciliationDto2": {
-        "required": [
-          "at",
-          "inSync",
-          "missing",
-          "unexpected",
-          "skippedPending"
-        ],
-        "type": "object",
-        "properties": {
-          "at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "inSync": {
-            "type": "boolean"
-          },
-          "missing": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "unexpected": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "skippedPending": {
-            "type": "integer",
-            "format": "int32"
-          }
         }
       },
       "SubjectRequest": {
-        "required": [
-          "type",
-          "id"
-        ],
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "nullable": true
-          },
-          "id": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "nullable": true
-      },
-      "SubjectRequest2": {
         "required": [
           "type",
           "id"
